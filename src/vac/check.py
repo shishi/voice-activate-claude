@@ -75,6 +75,27 @@ def check_vad(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_whisper(args: argparse.Namespace) -> int:
+    import numpy as np
+
+    from vac.adapters.mic import SoundDeviceAudioSource
+    from vac.adapters.whisper import FasterWhisperTranscriber
+    from vac.ports import FRAME_DURATION_S
+
+    seconds = 5
+    print("モデルをロード中(初回はダウンロードあり)...")
+    transcriber = FasterWhisperTranscriber()
+    print(f"{seconds}秒間録音します。日本語で話してください...")
+    frames = []
+    with SoundDeviceAudioSource() as source:
+        for _ in range(int(seconds / FRAME_DURATION_S)):
+            frames.append(source.read_frame())
+    text = transcriber.transcribe(np.concatenate(frames))
+    print(f"認識結果: {text}")
+    print("OK: 話した内容と概ね一致していれば成功")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -87,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     wake_parser.set_defaults(func=check_wake)
 
     sub.add_parser("vad", help="発話検知を試す").set_defaults(func=check_vad)
+
+    sub.add_parser("whisper", help="5秒録音して文字起こしする").set_defaults(func=check_whisper)
 
     args = parser.parse_args(argv)
     return args.func(args)
