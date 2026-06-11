@@ -1,0 +1,12 @@
+# ~/.config/voice-activate-claude/config.toml にコピーして使う。
+# 全キー省略可。以下はデフォルト値。
+
+wake_model = "hey_jarvis"        # openwakeword同梱名 または .onnxパス
+wake_threshold = 0.5             # 誤検知が多ければ上げる(0〜1)
+whisper_model = "small"          # tiny/base/small/medium/large-v3
+language = "ja"
+silence_limit_s = 1.5            # この秒数黙ると喋り終わり判定
+no_speech_timeout_s = 5.0        # ウェイク後この秒数無言ならキャンセル
+max_duration_s = 30.0            # 1回の発話の最大録音時間
+# claude_exe_path = 'C:\Users\you\AppData\Local\AnthropicClaude\claude.exe'
+sounds_enabled = true
