@@ -48,11 +48,14 @@ def check_wake(args: argparse.Namespace) -> int:
     openwakeword.utils.download_models()
     detector = OpenWakeWordDetector(model=args.model)
     print(f"モデル {args.model} で待機中。ウェイクワードを話してください (Ctrl+Cで終了)")
-    with SoundDeviceAudioSource() as source:
-        while True:
-            score = detector.score(source.read_frame())
-            if score > 0.2:
-                print(f"score={score:.2f}" + ("  <<< WAKE!" if score >= 0.5 else ""))
+    try:
+        with SoundDeviceAudioSource() as source:
+            while True:
+                score = detector.score(source.read_frame())
+                if score > 0.2:
+                    print(f"score={score:.2f}" + ("  <<< WAKE!" if score >= 0.5 else ""))
+    except KeyboardInterrupt:
+        pass
     return 0
 
 

@@ -14,7 +14,6 @@ class OpenWakeWordDetector:
     """
 
     def __init__(self, model: str) -> None:
-        self._model_key = model
         self._model = Model(wakeword_models=[model])
 
     def score(self, frame: np.ndarray) -> float:
