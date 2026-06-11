@@ -39,8 +39,33 @@ def test_restores_even_when_body_raises():
     assert clipboard.content == "before"
 
 
+def test_restores_empty_string_clipboard():
+    clipboard = FakeClipboard(initial="")
+    with ClipboardGuard(clipboard, "x"):
+        pass
+    assert clipboard.content == ""  # "" != None なので clear() してはいけない
+
+
 def test_clears_clipboard_when_it_was_empty():
     clipboard = FakeClipboard(initial=None)
     with ClipboardGuard(clipboard, "x"):
         assert clipboard.content == "x"
     assert clipboard.content is None
+
+
+def test_restore_failure_does_not_mask_body_exception():
+    class FailingRestoreClipboard(FakeClipboard):
+        def __init__(self) -> None:
+            super().__init__(initial="before")
+            self._set_calls = 0
+
+        def set_text(self, text: str) -> None:
+            self._set_calls += 1
+            if self._set_calls > 1:  # 2回目 = 復元時に失敗
+                raise OSError("clipboard service died")
+            super().set_text(text)
+
+    clipboard = FailingRestoreClipboard()
+    with pytest.raises(RuntimeError, match="paste failed"):
+        with ClipboardGuard(clipboard, "x"):
+            raise RuntimeError("paste failed")
