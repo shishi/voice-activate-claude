@@ -23,6 +23,20 @@ class Config:
     sounds_enabled: bool = True
 
 
+# 各フィールドの期待型("number" は bool を除く int/float)
+_FIELD_TYPES: dict[str, object] = {
+    "wake_model": str,
+    "wake_threshold": "number",
+    "whisper_model": str,
+    "language": str,
+    "silence_limit_s": "number",
+    "no_speech_timeout_s": "number",
+    "max_duration_s": "number",
+    "claude_exe_path": str,
+    "sounds_enabled": bool,
+}
+
+
 def load_config(path: Path) -> Config:
     if not path.exists():
         return Config()
@@ -34,9 +48,23 @@ def load_config(path: Path) -> Config:
     if unknown:
         raise ConfigError(f"unknown config keys: {sorted(unknown)}")
 
+    _validate_types(data)
     config = Config(**data)
     _validate(config)
     return config
+
+
+def _validate_types(data: dict[str, object]) -> None:
+    for key, value in data.items():
+        expected = _FIELD_TYPES[key]
+        if expected == "number":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ConfigError(f"{key} must be a number, got {value!r}")
+        elif expected is bool:
+            if not isinstance(value, bool):
+                raise ConfigError(f"{key} must be a boolean, got {value!r}")
+        elif not isinstance(value, str):
+            raise ConfigError(f"{key} must be a string, got {value!r}")
 
 
 def _validate(config: Config) -> None:
@@ -44,5 +72,7 @@ def _validate(config: Config) -> None:
         raise ConfigError(f"wake_threshold must be in (0, 1], got {config.wake_threshold}")
     if config.silence_limit_s <= 0:
         raise ConfigError("silence_limit_s must be positive")
+    if config.no_speech_timeout_s <= 0:
+        raise ConfigError("no_speech_timeout_s must be positive")
     if config.max_duration_s <= config.silence_limit_s:
         raise ConfigError("max_duration_s must exceed silence_limit_s")

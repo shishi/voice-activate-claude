@@ -56,3 +56,52 @@ def test_load_config_rejects_out_of_range_threshold(tmp_path: Path):
     path.write_text("wake_threshold = 1.5\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="wake_threshold"):
         load_config(path)
+
+
+def test_load_config_rejects_non_numeric_threshold(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text('wake_threshold = "high"\n', encoding="utf-8")
+    with pytest.raises(ConfigError, match="wake_threshold"):
+        load_config(path)
+
+
+def test_load_config_rejects_bool_for_numeric_field(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("silence_limit_s = true\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="silence_limit_s"):
+        load_config(path)
+
+
+def test_load_config_rejects_non_string_claude_exe_path(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("claude_exe_path = 3\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="claude_exe_path"):
+        load_config(path)
+
+
+def test_load_config_rejects_non_string_wake_model(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("wake_model = 5\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="wake_model"):
+        load_config(path)
+
+
+def test_load_config_rejects_non_string_language(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("language = 123\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="language"):
+        load_config(path)
+
+
+def test_load_config_rejects_non_bool_sounds_enabled(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("sounds_enabled = 1\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="sounds_enabled"):
+        load_config(path)
+
+
+def test_load_config_rejects_non_positive_no_speech_timeout(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text("no_speech_timeout_s = -5.0\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="no_speech_timeout_s"):
+        load_config(path)
