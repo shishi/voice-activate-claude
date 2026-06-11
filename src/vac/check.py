@@ -96,6 +96,16 @@ def check_whisper(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_inject(args: argparse.Namespace) -> int:
+    from vac.adapters.claude_driver import ClaudeDesktopDriver
+
+    driver = ClaudeDesktopDriver(exe_path=args.exe)
+    print(f"Claude Desktopに注入します: {args.text!r}")
+    driver.deliver(args.text)
+    print("OK: Claude Desktopにテキストが送信されていれば成功")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -110,6 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("vad", help="発話検知を試す").set_defaults(func=check_vad)
 
     sub.add_parser("whisper", help="5秒録音して文字起こしする").set_defaults(func=check_whisper)
+
+    inject_parser = sub.add_parser("inject", help="Claude Desktopにテキストを送る")
+    inject_parser.add_argument("text")
+    inject_parser.add_argument("--exe", default=None, help="claude.exe のパス")
+    inject_parser.set_defaults(func=check_inject)
 
     args = parser.parse_args(argv)
     return args.func(args)
