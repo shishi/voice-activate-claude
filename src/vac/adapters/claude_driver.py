@@ -108,8 +108,8 @@ class ClaudeDesktopDriver:
 
     def _assert_foreground(self, window) -> None:
         # 通知などにフォーカスを奪われたままENTERを打つと他アプリに誤送信されるため、
-        # 直前に前面を確認してダメなら注入を失敗扱いにする
-        window.set_focus()
+        # 直前に前面を検証する。奪い返してまで送らない(fail-closed):
+        # ユーザーが意図的に他アプリへ移った場合に勝手に送信しないため。
         if not window.is_active():
             raise DeliveryError("Claude window lost focus before ENTER; aborting")
 
