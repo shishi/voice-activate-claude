@@ -59,6 +59,22 @@ def check_wake(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_vad(args: argparse.Namespace) -> int:
+    from vac.adapters.mic import SoundDeviceAudioSource
+    from vac.adapters.vad import SileroSpeechDetector
+
+    detector = SileroSpeechDetector()
+    print("VAD監視中。話すと SPEECH、黙ると silence (Ctrl+Cで終了)")
+    try:
+        with SoundDeviceAudioSource() as source:
+            while True:
+                label = "SPEECH" if detector.is_speech(source.read_frame()) else "silence"
+                print(label)
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -69,6 +85,8 @@ def main(argv: list[str] | None = None) -> int:
     wake_parser = sub.add_parser("wake", help="ウェイクワード検知を試す")
     wake_parser.add_argument("--model", default="hey_jarvis")
     wake_parser.set_defaults(func=check_wake)
+
+    sub.add_parser("vad", help="発話検知を試す").set_defaults(func=check_vad)
 
     args = parser.parse_args(argv)
     return args.func(args)
