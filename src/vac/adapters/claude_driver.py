@@ -28,8 +28,20 @@ DEFAULT_EXE_CANDIDATES = [
 class Win32Clipboard:
     """ClipboardPort のWin32実装(テキストのみ扱う)。"""
 
+    @staticmethod
+    def _open_with_retry(attempts: int = 5, delay_s: float = 0.05) -> None:
+        # 他プロセスがクリップボードを掴んでいると ACCESS_DENIED になるため少し粘る
+        for attempt in range(attempts):
+            try:
+                win32clipboard.OpenClipboard()
+                return
+            except Exception:
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(delay_s)
+
     def get_text(self) -> str | None:
-        win32clipboard.OpenClipboard()
+        self._open_with_retry()
         try:
             if not win32clipboard.IsClipboardFormatAvailable(
                 win32clipboard.CF_UNICODETEXT
@@ -40,7 +52,7 @@ class Win32Clipboard:
             win32clipboard.CloseClipboard()
 
     def set_text(self, text: str) -> None:
-        win32clipboard.OpenClipboard()
+        self._open_with_retry()
         try:
             win32clipboard.EmptyClipboard()
             win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text)
@@ -48,7 +60,7 @@ class Win32Clipboard:
             win32clipboard.CloseClipboard()
 
     def clear(self) -> None:
-        win32clipboard.OpenClipboard()
+        self._open_with_retry()
         try:
             win32clipboard.EmptyClipboard()
         finally:
@@ -68,6 +80,7 @@ class ClaudeDesktopDriver:
                 window = self._wait_for_window()
             window.set_focus()
             self._inject(window, text)
+            self._assert_foreground(window)
             send_keys("{ENTER}")
         except DeliveryError:
             raise
@@ -93,6 +106,13 @@ class ClaudeDesktopDriver:
                 return
         raise DeliveryError(f"claude.exe not found in: {candidates}")
 
+    def _assert_foreground(self, window) -> None:
+        # 通知などにフォーカスを奪われたままENTERを打つと他アプリに誤送信されるため、
+        # 直前に前面を確認してダメなら注入を失敗扱いにする
+        window.set_focus()
+        if not window.is_active():
+            raise DeliveryError("Claude window lost focus before ENTER; aborting")
+
     def _wait_for_window(self):
         deadline = time.monotonic() + LAUNCH_TIMEOUT_S
         while time.monotonic() < deadline:
@@ -110,7 +130,10 @@ class ClaudeDesktopDriver:
             edit.set_edit_text(text)  # ValuePattern相当
             return
         except Exception:
-            logger.info("UIA ValuePattern injection failed; falling back to clipboard")
+            logger.info(
+                "UIA ValuePattern injection failed; falling back to clipboard",
+                exc_info=True,
+            )
         # 経路2: クリップボード+Ctrl+V(contenteditable対策の本命フォールバック)
         with ClipboardGuard(self._clipboard, text):
             send_keys("^v")
