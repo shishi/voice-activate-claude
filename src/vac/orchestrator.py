@@ -44,6 +44,7 @@ class Orchestrator:
         self._config = config
 
     def run_forever(self) -> None:
+        """tray.py は意図的にこれを使わず run_once() を直接ループする(死んだマイクを抱えたまま回り続けるのを避けるため)。"""
         while True:
             try:
                 self.run_once()

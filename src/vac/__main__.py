@@ -1,4 +1,5 @@
 """src/vac/__main__.py"""
 from vac.tray import main
 
-main()
+if __name__ == "__main__":
+    main()

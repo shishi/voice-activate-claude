@@ -63,7 +63,10 @@ def worker(config: Config, stop: threading.Event) -> None:
                 while not stop.is_set():
                     orchestrator.run_once()
         except Exception:
-            # マイク消失・モデルロード失敗等。マイクだけ作り直して復帰を試みる
+            # マイク消失・モデルロード失敗等。マイクだけ作り直して復帰を試みる。
+            # 既知の制限: マイク以外(Whisper等)の持続的故障は components を
+            # 作り直さないため、5秒毎のエラー音ループになる(ログで原因確認)。
+            # v1では許容。
             logger.exception(
                 "audio pipeline crashed; retrying in %ss", MIC_RETRY_INTERVAL_S
             )
