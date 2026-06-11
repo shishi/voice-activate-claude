@@ -57,3 +57,17 @@ def test_max_duration_forces_completion():
     # 喋り続けても 30秒 = 375フレームで強制完了
     assert feed_n(ep, True, 374) is Verdict.CONTINUE
     assert ep.feed(True) is Verdict.COMPLETE
+
+
+def test_max_duration_exact_multiple_is_deterministic():
+    # 0.56 / 0.08 = 7.0 だが浮動小数では 6.999... になり得る
+    ep = make(max_duration_s=0.56)
+    assert feed_n(ep, True, 6) is Verdict.CONTINUE
+    assert ep.feed(True) is Verdict.COMPLETE  # 7フレーム目ちょうどで完了
+
+
+def test_silence_limit_exact_multiple_requires_strictly_exceeding():
+    ep = make(silence_limit_s=0.8)  # = 10フレームちょうど
+    feed_n(ep, True, 3)
+    assert feed_n(ep, False, 10) is Verdict.CONTINUE  # 10フレーム(=0.8s)ではまだ
+    assert ep.feed(False) is Verdict.COMPLETE          # 11フレーム目で完了
