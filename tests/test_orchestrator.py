@@ -41,12 +41,16 @@ class FakeVad:
 
     def __init__(self, speech_frames: int = 10):
         self.remaining = speech_frames
+        self.reset_count = 0
 
     def is_speech(self, f) -> bool:
         if self.remaining > 0:
             self.remaining -= 1
             return True
         return False
+
+    def reset(self) -> None:
+        self.reset_count += 1
 
 
 class FakeTranscriber:
@@ -149,6 +153,13 @@ def test_wake_detector_reset_after_cycle():
     orchestrator, _ = build(wake=wake)
     orchestrator.run_once()
     assert wake.reset_count == 1
+
+
+def test_vad_reset_after_cycle():
+    vad = FakeVad()
+    orchestrator, _ = build(vad=vad)
+    orchestrator.run_once()
+    assert vad.reset_count == 1
 
 
 def test_wake_reset_even_when_recording_raises():

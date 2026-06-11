@@ -47,6 +47,10 @@ class SpeechDetector(Protocol):
         """フレームに人の発話が含まれるかを返す。"""
         ...
 
+    def reset(self) -> None:
+        """内部状態をクリアする(サイクル境界での汚染防止)。"""
+        ...
+
 
 class Transcriber(Protocol):
     def transcribe(self, audio: np.ndarray) -> str:

@@ -75,6 +75,7 @@ class Orchestrator:
             self._play_feedback(Feedback.DELIVERED)
         finally:
             self._wake.reset()
+            self._vad.reset()
 
     def _play_feedback(self, event: Feedback) -> None:
         """フィードバック再生はベストエフォート(失敗してもサイクルを止めない)。"""
