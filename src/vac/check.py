@@ -39,12 +39,33 @@ def check_mic(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_wake(args: argparse.Namespace) -> int:
+    import openwakeword.utils
+
+    from vac.adapters.mic import SoundDeviceAudioSource
+    from vac.adapters.wakeword import OpenWakeWordDetector
+
+    openwakeword.utils.download_models()
+    detector = OpenWakeWordDetector(model=args.model)
+    print(f"モデル {args.model} で待機中。ウェイクワードを話してください (Ctrl+Cで終了)")
+    with SoundDeviceAudioSource() as source:
+        while True:
+            score = detector.score(source.read_frame())
+            if score > 0.2:
+                print(f"score={score:.2f}" + ("  <<< WAKE!" if score >= 0.5 else ""))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("sound", help="効果音を順に再生する").set_defaults(func=check_sound)
     sub.add_parser("mic", help="マイク入力レベルを表示する").set_defaults(func=check_mic)
+
+    wake_parser = sub.add_parser("wake", help="ウェイクワード検知を試す")
+    wake_parser.add_argument("--model", default="hey_jarvis")
+    wake_parser.set_defaults(func=check_wake)
 
     args = parser.parse_args(argv)
     return args.func(args)
