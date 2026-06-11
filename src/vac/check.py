@@ -25,12 +25,12 @@ def check_mic(args: argparse.Namespace) -> int:
     import numpy as np
 
     from vac.adapters.mic import SoundDeviceAudioSource
-    from vac.ports import SAMPLE_RATE
+    from vac.ports import FRAME_DURATION_S
 
     seconds = 3
     print(f"{seconds}秒間レベルメーターを表示します。話しかけてください...")
     with SoundDeviceAudioSource() as source:
-        frames = int(seconds / 0.08)
+        frames = int(seconds / FRAME_DURATION_S)
         for _ in range(frames):
             frame = source.read_frame()
             level = int(np.abs(frame).mean() / 300)

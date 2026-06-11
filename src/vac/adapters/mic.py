@@ -45,4 +45,9 @@ class SoundDeviceAudioSource:
         self._stream.close()
 
     def read_frame(self) -> np.ndarray:
-        return self._queue.get()
+        # 正常なら80msごとにフレームが届くため、2秒無音はストリーム死と判断。
+        # RuntimeErrorは上位の包括catchに届き、ERROR音→ソース再生成につながる。
+        try:
+            return self._queue.get(timeout=2.0)
+        except queue.Empty:
+            raise RuntimeError("audio stream stalled; no frames for 2s") from None
