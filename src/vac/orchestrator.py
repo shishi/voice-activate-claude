@@ -53,8 +53,8 @@ class Orchestrator:
                 self._play_feedback(Feedback.ERROR)
 
     def run_once(self) -> None:
-        self._wait_for_wake()
         try:
+            self._wait_for_wake()
             self._play_feedback(Feedback.LISTENING)
             audio, verdict = self._record_command()
             if verdict is Verdict.NO_SPEECH:

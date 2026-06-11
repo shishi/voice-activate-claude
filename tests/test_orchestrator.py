@@ -177,6 +177,26 @@ def test_wake_reset_even_when_recording_raises():
     assert wake.reset_count == 1
 
 
+def test_wake_reset_even_when_idle_waiting_raises():
+    class DeadAudio:
+        def read_frame(self):
+            raise RuntimeError("mic died while idle")
+
+    wake = FakeWake()
+    orchestrator = Orchestrator(
+        audio=DeadAudio(),
+        wake=wake,
+        vad=FakeVad(),
+        transcriber=FakeTranscriber(),
+        deliverer=FakeDeliverer(),
+        feedback=FakeFeedback(),
+        config=Config(),
+    )
+    with pytest.raises(RuntimeError):
+        orchestrator.run_once()
+    assert wake.reset_count == 1
+
+
 class ExplodingFeedback:
     """play() が常に失敗する(スピーカー死亡など)。"""
 
