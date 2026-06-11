@@ -149,3 +149,29 @@ def test_wake_detector_reset_after_cycle():
     orchestrator, _ = build(wake=wake)
     orchestrator.run_once()
     assert wake.reset_count == 1
+
+
+def test_wake_reset_even_when_recording_raises():
+    class ExplodingAudio:
+        def __init__(self):
+            self.calls = 0
+
+        def read_frame(self):
+            self.calls += 1
+            if self.calls > 3:  # ウェイク検知後の録音フェーズで死ぬ
+                raise RuntimeError("mic died")
+            return frame(1)
+
+    wake = FakeWake(wake_at=3)
+    orchestrator = Orchestrator(
+        audio=ExplodingAudio(),
+        wake=wake,
+        vad=FakeVad(),
+        transcriber=FakeTranscriber(),
+        deliverer=FakeDeliverer(),
+        feedback=FakeFeedback(),
+        config=Config(),
+    )
+    with pytest.raises(RuntimeError):
+        orchestrator.run_once()
+    assert wake.reset_count == 1

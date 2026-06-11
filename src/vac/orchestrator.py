@@ -55,8 +55,8 @@ class Orchestrator:
     def run_once(self) -> None:
         self._wait_for_wake()
         self._feedback.play(Feedback.LISTENING)
-        audio, verdict = self._record_command()
         try:
+            audio, verdict = self._record_command()
             if verdict is Verdict.NO_SPEECH:
                 logger.info("no speech detected; nothing sent")
                 self._feedback.play(Feedback.ERROR)
