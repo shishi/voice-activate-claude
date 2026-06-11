@@ -175,3 +175,55 @@ def test_wake_reset_even_when_recording_raises():
     with pytest.raises(RuntimeError):
         orchestrator.run_once()
     assert wake.reset_count == 1
+
+
+class ExplodingFeedback:
+    """play() が常に失敗する(スピーカー死亡など)。"""
+
+    def play(self, event):
+        raise OSError("audio device unavailable")
+
+
+def test_feedback_failure_does_not_break_cycle():
+    deliverer = FakeDeliverer()
+    wake = FakeWake()
+    orchestrator = Orchestrator(
+        audio=FakeAudio(),
+        wake=wake,
+        vad=FakeVad(),
+        transcriber=FakeTranscriber(),
+        deliverer=deliverer,
+        feedback=ExplodingFeedback(),
+        config=Config(),
+    )
+    orchestrator.run_once()  # 例外が漏れないこと
+    assert deliverer.delivered == ["こんにちは"]
+    assert wake.reset_count == 1
+
+
+def test_run_forever_survives_error_in_error_handling():
+    class DyingAudio:
+        """1サイクル目はRuntimeError、2サイクル目はKeyboardInterruptで脱出。"""
+
+        def __init__(self):
+            self.calls = 0
+
+        def read_frame(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("mic died")
+            raise KeyboardInterrupt  # except Exception では捕まらない脱出口
+
+    orchestrator = Orchestrator(
+        audio=DyingAudio(),
+        wake=FakeWake(),
+        vad=FakeVad(),
+        transcriber=FakeTranscriber(),
+        deliverer=FakeDeliverer(),
+        feedback=ExplodingFeedback(),
+        config=Config(),
+    )
+    # 1サイクル目: RuntimeError → except節 → ERROR再生が失敗しても死なずに次のループへ
+    # 2サイクル目: KeyboardInterrupt で脱出 = ループが生き延びた証拠
+    with pytest.raises(KeyboardInterrupt):
+        orchestrator.run_forever()

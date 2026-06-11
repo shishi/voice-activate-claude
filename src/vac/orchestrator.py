@@ -50,31 +50,38 @@ class Orchestrator:
             except Exception:
                 # 常駐アプリは死なない(specセクション5)
                 logger.exception("unexpected error; returning to idle")
-                self._feedback.play(Feedback.ERROR)
+                self._play_feedback(Feedback.ERROR)
 
     def run_once(self) -> None:
         self._wait_for_wake()
-        self._feedback.play(Feedback.LISTENING)
         try:
+            self._play_feedback(Feedback.LISTENING)
             audio, verdict = self._record_command()
             if verdict is Verdict.NO_SPEECH:
                 logger.info("no speech detected; nothing sent")
-                self._feedback.play(Feedback.ERROR)
+                self._play_feedback(Feedback.ERROR)
                 return
             text = self._transcriber.transcribe(audio).strip()
             if not text:
                 logger.info("empty transcript; nothing sent")
-                self._feedback.play(Feedback.ERROR)
+                self._play_feedback(Feedback.ERROR)
                 return
             try:
                 self._deliverer.deliver(text)
             except DeliveryError:
                 logger.exception("delivery failed; transcript was: %s", text)
-                self._feedback.play(Feedback.ERROR)
+                self._play_feedback(Feedback.ERROR)
                 return
-            self._feedback.play(Feedback.DELIVERED)
+            self._play_feedback(Feedback.DELIVERED)
         finally:
             self._wake.reset()
+
+    def _play_feedback(self, event: Feedback) -> None:
+        """フィードバック再生はベストエフォート(失敗してもサイクルを止めない)。"""
+        try:
+            self._feedback.play(event)
+        except Exception:
+            logger.exception("feedback playback failed for %s", event)
 
     def _wait_for_wake(self) -> None:
         while True:
