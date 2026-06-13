@@ -140,25 +140,30 @@ def check_tree(args: argparse.Namespace) -> int:
 
     window = Desktop(backend="uia").window(title_re=WINDOW_TITLE_RE)
     hist: Counter = Counter()
-    candidates = []
+    inputs = []
+    named = []
     for ctrl in window.descendants():
         try:
             ei = ctrl.element_info
             ct = ei.control_type
             hist[ct] += 1
             if ct in {"Edit", "Document", "ComboBox"}:
-                candidates.append(
+                inputs.append(
                     f"{ct:10} name={ei.name!r} id={ei.automation_id!r} rect={ei.rectangle}"
                 )
+            elif ct in {"Button", "TabItem", "Tab", "MenuItem"} and ei.name:
+                named.append(f"{ct:10} name={ei.name!r} id={ei.automation_id!r}")
         except Exception:
             pass
     print("=== control_type の数 ===")
     for ct, n in hist.most_common():
         print(f"{n:5} {ct}")
     print("\n=== 入力欄候補(Edit/Document/ComboBox)===")
-    for line in candidates:
+    for line in inputs:
         print(line)
-    print(f"\n候補 {len(candidates)} 件。これを貼って渡してね")
+    print("\n=== 名前付きボタン/タブ候補(Chatタブ等の特定用)===")
+    for line in named:
+        print(line)
     return 0
 
 
