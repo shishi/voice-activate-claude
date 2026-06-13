@@ -7,13 +7,25 @@ def resolve_input_device(query, devices):
 
     query:
         None -> None(OS既定デバイスを使う)
-        int  -> そのまま(デバイスindex)
+        int  -> そのデバイスindex(範囲外/入力不可なら ValueError)
         str  -> 名前にその文字列を含む最初の「入力可能な」デバイスのindex
     devices: sounddevice.query_devices() が返す辞書のリスト
              (各要素は "name" と "max_input_channels" を持つ)
     一致する入力デバイスが無ければ ValueError。
     """
-    if query is None or isinstance(query, int):
+    if query is None:
+        return None
+    if isinstance(query, int):
+        if query < 0 or query >= len(devices):
+            raise ValueError(
+                f"device index {query} out of range (0-{len(devices) - 1}); "
+                f"run `python -m vac.check devices` to list available devices"
+            )
+        if devices[query].get("max_input_channels", 0) <= 0:
+            raise ValueError(
+                f"device index {query} ({devices[query]['name']}) is not an input device; "
+                f"run `python -m vac.check devices` to list available devices"
+            )
         return query
     needle = query.casefold()
     for index, device in enumerate(devices):

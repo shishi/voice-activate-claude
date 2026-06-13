@@ -20,6 +20,17 @@ def test_int_passes_through():
     assert resolve_input_device(2, DEVICES) == 2
 
 
+def test_int_index_must_be_input_capable():
+    # index 3 = EDIFIER スピーカー (max_input_channels=0)
+    with pytest.raises(ValueError, match="not an input device"):
+        resolve_input_device(3, DEVICES)
+
+
+def test_int_index_out_of_range_raises():
+    with pytest.raises(ValueError, match="out of range"):
+        resolve_input_device(99, DEVICES)
+
+
 def test_string_matches_substring():
     assert resolve_input_device("BRIO", DEVICES) == 2
 
