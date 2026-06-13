@@ -81,3 +81,5 @@ def _validate(config: Config) -> None:
         raise ConfigError("no_speech_timeout_s must be positive")
     if config.max_duration_s <= config.silence_limit_s:
         raise ConfigError("max_duration_s must exceed silence_limit_s")
+    if isinstance(config.input_device, int) and config.input_device < 0:
+        raise ConfigError(f"input_device index must be >= 0, got {config.input_device}")

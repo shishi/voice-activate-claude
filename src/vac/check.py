@@ -10,10 +10,13 @@ import sys
 
 
 def _parse_device(value):
-    # 数字だけならindex、それ以外は名前(部分一致)として扱う
+    # 数字(符号付き含む)ならindex、それ以外は名前(部分一致)として扱う
     if value is None:
         return None
-    return int(value) if value.isdigit() else value
+    try:
+        return int(value)
+    except ValueError:
+        return value
 
 
 def check_sound(args: argparse.Namespace) -> int:

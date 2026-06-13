@@ -128,3 +128,10 @@ def test_input_device_rejects_float(tmp_path):
     path.write_text("input_device = 1.5\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="input_device"):
         load_config(path)
+
+
+def test_input_device_rejects_negative_index(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("input_device = -1\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="input_device"):
+        load_config(path)
