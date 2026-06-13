@@ -131,6 +131,37 @@ def check_inject(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_tree(args: argparse.Namespace) -> int:
+    from collections import Counter
+
+    from pywinauto import Desktop
+
+    from vac.adapters.claude_driver import WINDOW_TITLE_RE
+
+    window = Desktop(backend="uia").window(title_re=WINDOW_TITLE_RE)
+    hist: Counter = Counter()
+    candidates = []
+    for ctrl in window.descendants():
+        try:
+            ei = ctrl.element_info
+            ct = ei.control_type
+            hist[ct] += 1
+            if ct in {"Edit", "Document", "ComboBox"}:
+                candidates.append(
+                    f"{ct:10} name={ei.name!r} id={ei.automation_id!r} rect={ei.rectangle}"
+                )
+        except Exception:
+            pass
+    print("=== control_type の数 ===")
+    for ct, n in hist.most_common():
+        print(f"{n:5} {ct}")
+    print("\n=== 入力欄候補(Edit/Document/ComboBox)===")
+    for line in candidates:
+        print(line)
+    print(f"\n候補 {len(candidates)} 件。これを貼って渡してね")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -160,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     inject_parser.set_defaults(func=check_inject)
 
     sub.add_parser("devices", help="入力/出力デバイス一覧を表示する").set_defaults(func=check_devices)
+
+    sub.add_parser("tree", help="Claude DesktopのUIAツリーを調べる").set_defaults(func=check_tree)
 
     args = parser.parse_args(argv)
     return args.func(args)
