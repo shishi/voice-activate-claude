@@ -105,3 +105,26 @@ def test_load_config_rejects_non_positive_no_speech_timeout(tmp_path: Path):
     path.write_text("no_speech_timeout_s = -5.0\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="no_speech_timeout_s"):
         load_config(path)
+
+
+def test_input_device_defaults_to_none():
+    assert Config().input_device is None
+
+
+def test_input_device_accepts_string(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text('input_device = "BRIO"\n', encoding="utf-8")
+    assert load_config(path).input_device == "BRIO"
+
+
+def test_input_device_accepts_int(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("input_device = 4\n", encoding="utf-8")
+    assert load_config(path).input_device == 4
+
+
+def test_input_device_rejects_float(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("input_device = 1.5\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="input_device"):
+        load_config(path)

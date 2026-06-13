@@ -23,11 +23,16 @@
 各コンポーネントを単体で診断できる:
 
     uv run python -m vac.check sound    # 効果音
+    uv run python -m vac.check devices  # 入力デバイス一覧
     uv run python -m vac.check mic      # マイク入力
     uv run python -m vac.check wake     # ウェイクワード検知
     uv run python -m vac.check vad      # 発話検知
     uv run python -m vac.check whisper  # 文字起こし
     uv run python -m vac.check inject "テスト"  # Claude Desktopへの注入
+
+OS既定のマイクが使いたいデバイスでない場合は、`devices` で一覧を確認して
+config の `input_device` (名前の部分一致またはindex)で指定するか、
+各 check コマンドに `--device` オプションを渡す。
 
 実機での通し確認は `docs/e2e-checklist.md` を参照。
 

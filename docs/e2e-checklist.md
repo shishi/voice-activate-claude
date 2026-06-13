@@ -8,6 +8,7 @@
 - [ ] `uv run python -m vac.check wake` を実行し、openwakewordモデルをダウンロードする
 - [ ] `uv run python -m vac.check whisper` を実行し、Whisperモデルをダウンロードする
 - [ ] 注意: モデル未ダウンロードのまま常駐起動すると5秒毎のエラー音ループになる(原因はvac.logに出る)
+- [ ] `uv run python -m vac.check devices` でマイク一覧を確認し、既定が使いたいマイクでなければ config の `input_device`(または各checkの `--device`)で指定する
 
 ## 正常系
 

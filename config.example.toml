@@ -9,4 +9,5 @@ silence_limit_s = 1.5            # この秒数黙ると喋り終わり判定
 no_speech_timeout_s = 5.0        # ウェイク後この秒数無言ならキャンセル
 max_duration_s = 30.0            # 1回の発話の最大録音時間
 # claude_exe_path = 'C:\Users\you\AppData\Local\AnthropicClaude\claude.exe'
+# input_device = "BRIO"          # マイクの名前(部分一致)かindex。未指定ならOS既定
 sounds_enabled = true

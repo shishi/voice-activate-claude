@@ -56,7 +56,7 @@ def worker(config: Config, stop: threading.Event) -> None:
         try:
             if components is None:
                 components = build_components(config)
-            with SoundDeviceAudioSource() as audio:
+            with SoundDeviceAudioSource(device=config.input_device) as audio:
                 orchestrator = Orchestrator(
                     audio=audio, feedback=feedback, config=config, **components
                 )

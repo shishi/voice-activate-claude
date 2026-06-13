@@ -20,6 +20,7 @@ class Config:
     no_speech_timeout_s: float = 5.0
     max_duration_s: float = 30.0
     claude_exe_path: str | None = None
+    input_device: str | int | None = None
     sounds_enabled: bool = True
 
 
@@ -33,6 +34,7 @@ _FIELD_TYPES: dict[str, object] = {
     "no_speech_timeout_s": "number",
     "max_duration_s": "number",
     "claude_exe_path": str,
+    "input_device": "device",
     "sounds_enabled": bool,
 }
 
@@ -60,6 +62,9 @@ def _validate_types(data: dict[str, object]) -> None:
         if expected == "number":
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ConfigError(f"{key} must be a number, got {value!r}")
+        elif expected == "device":
+            if isinstance(value, bool) or not isinstance(value, (str, int)):
+                raise ConfigError(f"{key} must be a device name (string) or index (int), got {value!r}")
         elif expected is bool:
             if not isinstance(value, bool):
                 raise ConfigError(f"{key} must be a boolean, got {value!r}")

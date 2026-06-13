@@ -6,20 +6,23 @@ import queue
 import numpy as np
 import sounddevice as sd
 
+from vac.devices import resolve_input_device
 from vac.ports import FRAME_SAMPLES, SAMPLE_RATE
 
 
 class SoundDeviceAudioSource:
-    """既定の入力デバイスから80msフレームを供給する。
+    """選択した入力デバイス(またはOS既定)から80msフレームを供給する。
 
     コールバックスレッドからキュー経由で受け渡す(read_frameはブロッキング)。
     デバイス消失時はsounddeviceが例外を投げるため、上位(tray.py)が
     再接続リトライを行う(specセクション5)。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, device=None) -> None:
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=100)
+        resolved = resolve_input_device(device, sd.query_devices())
         self._stream = sd.InputStream(
+            device=resolved,
             samplerate=SAMPLE_RATE,
             channels=1,
             dtype="int16",
