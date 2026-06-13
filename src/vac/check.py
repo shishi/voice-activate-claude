@@ -117,8 +117,13 @@ def check_devices(args: argparse.Namespace) -> int:
 
 
 def check_inject(args: argparse.Namespace) -> int:
+    import logging
+
     from vac.adapters.claude_driver import ClaudeDesktopDriver
 
+    # どの注入経路(UIA ValuePattern / クリップボード貼り付け)を使ったかを
+    # 画面で確認できるよう、診断時だけドライバのINFOログを出す。
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     driver = ClaudeDesktopDriver(exe_path=args.exe)
     print(f"Claude Desktopに注入します: {args.text!r}")
     driver.deliver(args.text)
