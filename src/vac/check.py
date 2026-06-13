@@ -43,9 +43,11 @@ def check_mic(args: argparse.Namespace) -> int:
         frames = int(seconds / FRAME_DURATION_S)
         for _ in range(frames):
             frame = source.read_frame()
-            level = int(np.abs(frame).mean() / 300)
-            print("#" * min(level, 60))
-    print("OK: 声に反応して棒が伸びていれば成功")
+            # 平均振幅をそのまま数値で出し、棒も鳴らす。speechの平均は数十〜数百なので
+            # /10 でちょうど見やすい本数になる(無音は数値もほぼ0で一目で分かる)。
+            mean = int(np.abs(frame).mean())
+            print(f"{mean:5d} " + "#" * min(mean // 10, 60))
+    print("OK: 声に反応して数値と棒が伸びていれば成功")
     return 0
 
 
