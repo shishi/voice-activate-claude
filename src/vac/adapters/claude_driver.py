@@ -17,7 +17,7 @@ from vac.ports import DeliveryError
 logger = logging.getLogger(__name__)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
-NEW_CHAT_BUTTON_TITLE = "新規チャット"  # Chatタブの「新規チャット」ボタン(日本語UI依存)
+NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットボタン(ロケール差を吸収)
 LAUNCH_TIMEOUT_S = 15.0
 DEFAULT_EXE_CANDIDATES = [
     # 標準的なインストール先。実機で `where claude` 等で確認して必要なら追加する
@@ -123,6 +123,14 @@ class ClaudeDesktopDriver:
             time.sleep(0.5)
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
+    def _first_existing_button(self, window, titles):
+        # 既知ラベルを順に試し、最初に存在したボタンを返す(UI言語差・ラベル変更に強い)
+        for title in titles:
+            button = window.child_window(title=title, control_type="Button")
+            if button.exists(timeout=2):
+                return button
+        raise DeliveryError(f"new chat button not found (tried {titles})")
+
     def _inject(self, window, text: str) -> None:
         # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブで
         # 毎回「新規チャット」を開いてから送る。ElectronのcontenteditableはUIA
@@ -137,8 +145,7 @@ class ClaudeDesktopDriver:
         time.sleep(0.3)  # ビュー切り替えの描画待ち
 
         logger.info("starting a new chat")
-        new_chat = window.child_window(title=NEW_CHAT_BUTTON_TITLE, control_type="Button")
-        new_chat.wait("exists enabled visible ready", timeout=10)
+        new_chat = self._first_existing_button(window, NEW_CHAT_BUTTON_TITLES)
         self._assert_foreground(window)
         new_chat.click_input()  # 毎回まっさらなチャットに送る
         time.sleep(0.3)  # 新規チャット描画待ち
