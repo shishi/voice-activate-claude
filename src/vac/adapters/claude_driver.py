@@ -139,5 +139,6 @@ class ClaudeDesktopDriver:
 
         logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):
+            self._assert_foreground(window)  # 貼り付け直前にも前面を確認(誤爆=漏洩防止)
             send_keys("^v")
             time.sleep(0.3)  # 貼り付け完了を待ってからクリップボードを復元
