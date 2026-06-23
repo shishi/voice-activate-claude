@@ -17,6 +17,7 @@ from vac.ports import DeliveryError
 logger = logging.getLogger(__name__)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
+NEW_CHAT_BUTTON_TITLE = "新規チャット"  # Chatタブの「新規チャット」ボタン(日本語UI依存)
 LAUNCH_TIMEOUT_S = 15.0
 DEFAULT_EXE_CANDIDATES = [
     # 標準的なインストール先。実機で `where claude` 等で確認して必要なら追加する
@@ -123,17 +124,24 @@ class ClaudeDesktopDriver:
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
     def _inject(self, window, text: str) -> None:
-        # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブの
-        # 入力欄に送る。ElectronのcontenteditableはUIA ValuePatternが効かない/
-        # 黙って失敗しうるため、入力欄を実クリックでフォーカスしてクリップボード貼り付けする。
-        # 物理クリック/貼り付けの各直前で前面を検証し、前面化できないなら一切操作しない
-        # (座標クリックが別アプリに当たる誤爆を防ぐ fail-closed)。
+        # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブで
+        # 毎回「新規チャット」を開いてから送る。ElectronのcontenteditableはUIA
+        # ValuePatternが効かない/黙って失敗しうるため、入力欄を実クリックでフォーカス
+        # してクリップボード貼り付けする。物理クリック/貼り付けの各直前で前面を検証し、
+        # 前面化できないなら一切操作しない(座標クリックの誤爆を防ぐ fail-closed)。
         logger.info("switching to Chat tab")
         chat_tab = window.child_window(title="Chat", control_type="Button")
         chat_tab.wait("exists enabled visible ready", timeout=10)
         self._assert_foreground(window)
         chat_tab.click_input()  # 既にChatタブでも無害(冪等)
         time.sleep(0.3)  # ビュー切り替えの描画待ち
+
+        logger.info("starting a new chat")
+        new_chat = window.child_window(title=NEW_CHAT_BUTTON_TITLE, control_type="Button")
+        new_chat.wait("exists enabled visible ready", timeout=10)
+        self._assert_foreground(window)
+        new_chat.click_input()  # 毎回まっさらなチャットに送る
+        time.sleep(0.3)  # 新規チャット描画待ち
 
         logger.info("focusing chat composer (Edit)")
         composer = window.child_window(control_type="Edit")
