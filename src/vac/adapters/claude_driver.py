@@ -126,19 +126,23 @@ class ClaudeDesktopDriver:
         # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブの
         # 入力欄に送る。ElectronのcontenteditableはUIA ValuePatternが効かない/
         # 黙って失敗しうるため、入力欄を実クリックでフォーカスしてクリップボード貼り付けする。
+        # 物理クリック/貼り付けの各直前で前面を検証し、前面化できないなら一切操作しない
+        # (座標クリックが別アプリに当たる誤爆を防ぐ fail-closed)。
         logger.info("switching to Chat tab")
         chat_tab = window.child_window(title="Chat", control_type="Button")
         chat_tab.wait("exists enabled visible ready", timeout=10)
+        self._assert_foreground(window)
         chat_tab.click_input()  # 既にChatタブでも無害(冪等)
         time.sleep(0.3)  # ビュー切り替えの描画待ち
 
         logger.info("focusing chat composer (Edit)")
         composer = window.child_window(control_type="Edit")
         composer.wait("exists enabled visible ready", timeout=10)
+        self._assert_foreground(window)
         composer.click_input()  # 唯一のEdit=Chat入力欄を確実にフォーカス
 
         logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):
-            self._assert_foreground(window)  # 貼り付け直前にも前面を確認(誤爆=漏洩防止)
+            self._assert_foreground(window)
             send_keys("^v")
             time.sleep(0.3)  # 貼り付け完了を待ってからクリップボードを復元
