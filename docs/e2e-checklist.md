@@ -18,21 +18,13 @@
 - [ ] 完了音が鳴り、続けてもう一度ウェイクワードに反応する
 - [ ] Claude Desktopを終了した状態でも、ウェイク→発話でアプリが起動し送信される
 
-## 注入経路の診断(claude_driver の最重要検証)
+## 注入(Chatタブへの送信)の確認
 
-- [ ] vac.log で経路1(UIA ValuePattern)と経路2(クリップボード貼り付け)のどちらが
-      使われたか確認し、結果を spec セクション10 に追記する
-- [ ] 経路1が動く場合: ValuePattern でテキスト設定後の ENTER が実際に送信されるか
-      (フォーカス喪失で ENTER が食われないか)
-- [ ] ウィンドウタイトルが正規表現 `^Claude(\s.*)?$` にマッチしているか確認
-      (タイトルが違う場合は claude_driver.py の WINDOW_TITLE_RE を修正)
-- [ ] claude.exe の実パスが DEFAULT_EXE_CANDIDATES に含まれるか確認
-      (違う場合は config の claude_exe_path を設定)
-- [ ] コールド起動: アプリ未起動から注入したとき、スプラッシュ/ロード画面の段階で
-      ENTER が空打ちされないか(入力欄が出るまで待てているか)
-- [ ] pywinauto の UIAWrapper に is_active() が存在するか確認
-      (存在しない場合は全注入が DeliveryError で失敗する=fail-closed。
-      その場合 win32gui.GetForegroundWindow() 比較に書き換える)
+- [ ] Code/Cowork タブを開いた状態で `vac.check inject "テスト"` を実行 → 自動でChatタブに切り替わり、Chat入力欄にテキストが入って送信される
+- [ ] Chatタブを開いた状態でも同様に送信される
+- [ ] 送信先が必ずChatタブの入力欄であること(Cowork/Codeには入らない)
+- [ ] 貼り付け→Enterの間に別ウィンドウへフォーカスを移すと、誤爆せず DeliveryError(エラー音)で中止される
+- [ ] Claude Desktop のウィンドウタイトルが `^Claude(\s.*)?$` にマッチする / 入力欄が唯一のEditとして見える(`vac.check tree` で確認)
 
 ## フォーカス安全性(誤送信防止)
 

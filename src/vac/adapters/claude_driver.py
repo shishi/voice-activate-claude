@@ -123,18 +123,21 @@ class ClaudeDesktopDriver:
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
     def _inject(self, window, text: str) -> None:
-        # 経路1: UIAで入力欄(Editコントロール)を探しValuePatternで設定
-        try:
-            edit = window.child_window(control_type="Edit", found_index=0)
-            edit.set_focus()
-            edit.set_edit_text(text)  # ValuePattern相当
-            return
-        except Exception:
-            logger.info(
-                "UIA ValuePattern injection failed; falling back to clipboard",
-                exc_info=True,
-            )
-        # 経路2: クリップボード+Ctrl+V(contenteditable対策の本命フォールバック)
+        # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブの
+        # 入力欄に送る。ElectronのcontenteditableはUIA ValuePatternが効かない/
+        # 黙って失敗しうるため、入力欄を実クリックでフォーカスしてクリップボード貼り付けする。
+        logger.info("switching to Chat tab")
+        chat_tab = window.child_window(title="Chat", control_type="Button")
+        chat_tab.wait("exists enabled visible ready", timeout=10)
+        chat_tab.click_input()  # 既にChatタブでも無害(冪等)
+        time.sleep(0.3)  # ビュー切り替えの描画待ち
+
+        logger.info("focusing chat composer (Edit)")
+        composer = window.child_window(control_type="Edit")
+        composer.wait("exists enabled visible ready", timeout=10)
+        composer.click_input()  # 唯一のEdit=Chat入力欄を確実にフォーカス
+
+        logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):
             send_keys("^v")
             time.sleep(0.3)  # 貼り付け完了を待ってからクリップボードを復元
