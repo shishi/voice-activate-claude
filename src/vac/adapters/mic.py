@@ -54,3 +54,12 @@ class SoundDeviceAudioSource:
             return self._queue.get(timeout=2.0)
         except queue.Empty:
             raise RuntimeError("audio stream stalled; no frames for 2s") from None
+
+    def flush(self) -> None:
+        # キューに溜まった未読フレームを破棄し、次の read_frame を新しい音から始める。
+        # (録音開始位置を合図の直後に揃える用。合図音の録り込みを防ぐ)
+        try:
+            while True:
+                self._queue.get_nowait()
+        except queue.Empty:
+            pass

@@ -170,6 +170,39 @@ def check_tree(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_record(args: argparse.Namespace) -> int:
+    import time
+    import wave
+    from pathlib import Path
+
+    import numpy as np
+
+    from vac.adapters.mic import SoundDeviceAudioSource
+    from vac.adapters.sound import WinSoundPlayer
+    from vac.ports import FRAME_DURATION_S, SAMPLE_RATE, Feedback
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    frames_per_clip = max(1, int(args.seconds / FRAME_DURATION_S))  # 最低1フレーム(空concat防止)
+    player = WinSoundPlayer()
+    print(f"{args.count}本を {out}/ に録音します。ピッの直後に『{args.phrase}』と言ってください")
+    with SoundDeviceAudioSource(device=_parse_device(args.device)) as source:
+        for i in range(args.count):
+            time.sleep(0.6)  # 言い終わり〜次までの準備
+            player.play(Feedback.LISTENING)  # ピッ=いま話して
+            source.flush()  # 合図音や前の残りを捨て、声だけ録る
+            audio = np.concatenate([source.read_frame() for _ in range(frames_per_clip)])
+            path = out / f"{args.prefix}_{i:03d}.wav"
+            with wave.open(str(path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)  # int16
+                wf.setframerate(SAMPLE_RATE)
+                wf.writeframes(audio.tobytes())
+            print(f"[{i + 1}/{args.count}] {path.name}")
+    print(f"完了。{out}/ の wav を Cowork に渡し、positive に混ぜて再学習してもらう")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -201,6 +234,15 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("devices", help="入力/出力デバイス一覧を表示する").set_defaults(func=check_devices)
 
     sub.add_parser("tree", help="Claude DesktopのUIAツリーを調べる").set_defaults(func=check_tree)
+
+    record_parser = sub.add_parser("record", help="学習用のウェイクワード音声を録音する")
+    record_parser.add_argument("--device", default=None, help="入力デバイスの名前(部分一致)かindex")
+    record_parser.add_argument("--out", default="voice_samples", help="出力フォルダ")
+    record_parser.add_argument("--count", type=int, default=40, help="録音する本数")
+    record_parser.add_argument("--seconds", type=float, default=1.5, help="1本あたりの秒数")
+    record_parser.add_argument("--phrase", default="ヘイ クロード", help="言うフレーズ(表示用)")
+    record_parser.add_argument("--prefix", default="heyclaude", help="ファイル名の接頭辞")
+    record_parser.set_defaults(func=check_record)
 
     args = parser.parse_args(argv)
     return args.func(args)
