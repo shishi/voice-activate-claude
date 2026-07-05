@@ -60,14 +60,17 @@ def check_wake(args: argparse.Namespace) -> int:
     openwakeword.utils.download_models()
     detector = OpenWakeWordDetector(model=args.model)
     print(f"モデル {args.model} で待機中。ウェイクワードを話してください (Ctrl+Cで終了)")
+    peak = 0.0
     try:
         with SoundDeviceAudioSource(device=_parse_device(args.device)) as source:
             while True:
                 score = detector.score(source.read_frame())
-                if score > 0.2:
-                    print(f"score={score:.2f}" + ("  <<< WAKE!" if score >= 0.5 else ""))
+                peak = max(peak, score)
+                # 弱い反応(0.05〜)も見えるよう表示閾値を下げる。診断で「ほぼ0か弱い反応か」を切り分ける
+                if score > 0.05:
+                    print(f"score={score:.3f}" + ("  <<< WAKE!" if score >= 0.5 else ""))
     except KeyboardInterrupt:
-        pass
+        print(f"\n最大スコア: {peak:.3f}")
     return 0
 
 
