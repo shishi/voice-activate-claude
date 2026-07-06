@@ -141,12 +141,13 @@ def _build_mic_menu(control: MicControl):
 
     from vac.devices import list_input_devices, resolve_input_device
 
+    all_devices = []
+    devices = []
     try:
         all_devices = sd.query_devices()
         devices = list_input_devices(all_devices)
     except Exception:
         logger.exception("failed to list input devices")
-        devices = []
     # 起動時の選択(名前/index/None)を実デバイス名に解決してチェック表示を合わせる
     if control.selected_name is None and control.device is not None:
         try:
