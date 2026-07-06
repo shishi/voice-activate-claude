@@ -16,15 +16,25 @@
 
 コンソールウィンドウを一切出さずに起動するショートカットを作成します。
 
+**推奨: 生成スクリプトで作る**(手作りは .lnk のリンク先/引数の分割ミスで起動しないことがある)。
+リポジトリのフォルダで PowerShell から一度だけ実行:
+```
+powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1
+```
+デスクトップに **Voice Activate Claude** ショートカットができる。ダブルクリックで
+タスクバーに黒窓が残らず、トレイにアイコンだけ表示される。
+
+<details><summary>手作りする場合(非推奨)</summary>
+
 1. デスクトップを右クリック → **新規作成** → **ショートカット**
-2. 「項目の場所を入力してください」に以下を貼り付け(`<repo>` は実際のパスに変更):
+2. 「項目の場所」に以下を貼り付け(`<repo>` は実際のパスに変更):
    ```
    powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<repo>\scripts\run-vac.ps1"
    ```
-   例: `C:\Users\yourname\repos\voice-activate-claude\scripts\run-vac.ps1`
-3. 名前を **Voice Activate Claude** に設定して完了
+3. 名前を **Voice Activate Claude** に設定して完了。
 
-ダブルクリックするとタスクバーに黒窓が残らず、トレイにアイコンだけ表示されます。
+うまく起動しない場合は生成スクリプト(上)を使うこと。
+</details>
 
 ---
 
