@@ -33,6 +33,7 @@
 OS既定のマイクが使いたいデバイスでない場合は、`devices` で一覧を確認して
 config の `input_device` (名前の部分一致またはindex)で指定するか、
 各 check コマンドに `--device` オプションを渡す。
+トレイの「マイク」からいつでも入力デバイスを切り替えられる(選択は config に保存される)。
 
 実機での通し確認は `docs/e2e-checklist.md` を参照。
 

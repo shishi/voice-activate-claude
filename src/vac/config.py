@@ -1,6 +1,7 @@
 """src/vac/config.py"""
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -83,3 +84,22 @@ def _validate(config: Config) -> None:
         raise ConfigError("max_duration_s must exceed silence_limit_s")
     if isinstance(config.input_device, int) and config.input_device < 0:
         raise ConfigError(f"input_device index must be >= 0, got {config.input_device}")
+
+
+def save_input_device(path: Path, device: str | int) -> None:
+    """config.toml の input_device 行を更新(なければ追記)。他の行・コメントは保持する。"""
+    value = f'"{device}"' if isinstance(device, str) else str(device)
+    new_line = f"input_device = {value}"
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = []
+    pattern = re.compile(r"^\s*#?\s*input_device\s*=")
+    for i, line in enumerate(lines):
+        if pattern.match(line):
+            lines[i] = new_line
+            break
+    else:
+        lines.append(new_line)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")

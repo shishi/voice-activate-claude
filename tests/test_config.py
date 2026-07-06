@@ -135,3 +135,39 @@ def test_input_device_rejects_negative_index(tmp_path):
     path.write_text("input_device = -1\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="input_device"):
         load_config(path)
+
+
+def test_save_input_device_updates_commented_line(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "c.toml"
+    p.write_text('wake_threshold = 0.5\n# input_device = "OLD"\n', encoding="utf-8")
+    save_input_device(p, "BRIO")
+    text = p.read_text(encoding="utf-8")
+    assert 'input_device = "BRIO"' in text
+    assert "# input_device" not in text
+    assert load_config(p).input_device == "BRIO"
+
+
+def test_save_input_device_updates_existing_line(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "c.toml"
+    p.write_text('input_device = "OLD"\nwake_threshold = 0.5\n', encoding="utf-8")
+    save_input_device(p, "BRIO")
+    assert load_config(p).input_device == "BRIO"
+    assert "wake_threshold = 0.5" in p.read_text(encoding="utf-8")
+
+
+def test_save_input_device_appends_when_absent(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "c.toml"
+    p.write_text("wake_threshold = 0.5\n", encoding="utf-8")
+    save_input_device(p, "BRIO")
+    assert load_config(p).input_device == "BRIO"
+    assert "wake_threshold = 0.5" in p.read_text(encoding="utf-8")
+
+
+def test_save_input_device_creates_file_when_missing(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "sub" / "c.toml"
+    save_input_device(p, "BRIO")
+    assert load_config(p).input_device == "BRIO"

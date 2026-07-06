@@ -37,3 +37,12 @@ def resolve_input_device(query, devices):
         f"no input device matches {query!r}; "
         f"run `python -m vac.check devices` to list available devices"
     )
+
+
+def list_input_devices(devices):
+    """入力可能なデバイスだけを (index, name) のリストで返す(トレイのマイク一覧用)。"""
+    return [
+        (index, device["name"])
+        for index, device in enumerate(devices)
+        if device.get("max_input_channels", 0) > 0
+    ]

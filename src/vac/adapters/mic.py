@@ -63,3 +63,7 @@ class SoundDeviceAudioSource:
                 self._queue.get_nowait()
         except queue.Empty:
             pass
+
+    def abort(self) -> None:
+        # 別スレッドから即座にストリームを止め、read_frame を早期終了させる(マイク切替用)。
+        self._stream.abort()

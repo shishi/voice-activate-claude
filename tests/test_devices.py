@@ -53,3 +53,13 @@ def test_skips_output_only_devices():
 def test_no_match_raises_with_query_in_message():
     with pytest.raises(ValueError, match="nonexistent"):
         resolve_input_device("nonexistent", DEVICES)
+
+
+def test_list_input_devices_filters_output_only_and_pairs_index_name():
+    from vac.devices import list_input_devices
+    devices = [
+        {"name": "Mapper", "max_input_channels": 2},
+        {"name": "BRIO", "max_input_channels": 2},
+        {"name": "Speaker", "max_input_channels": 0},
+    ]
+    assert list_input_devices(devices) == [(0, "Mapper"), (1, "BRIO")]
