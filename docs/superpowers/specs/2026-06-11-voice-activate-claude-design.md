@@ -165,6 +165,6 @@ CLAUDE.md の TDD 方針(Red → Green → Refactor)に従う。
 | Claude Desktop のウィンドウクラス名/実行パスがアップデートで変わる | 設定で上書き可能にし、探索条件を一箇所に集約 |
 | 「hey claude」カスタムモデルの精度不足 | 閾値調整+既製モデルへの切り替えを設定で常時可能にしておく |
 | CPU での Whisper が遅い | small で開始し、体感が悪ければモデル/ハードを見直す |
-| SetForegroundWindow の制約(Windows はバックグラウンドからの前面化を制限する場合がある) | 失敗時は ALT キー擬似送信等の既知の回避策を試し、それでもダメならエラー音で通知 |
+| SetForegroundWindow の制約(Windows はバックグラウンドからの前面化を制限する場合がある) | ドライバが `_raise_foreground()` で積極的に前面化する: まず pywinauto の `set_focus()`、失敗時は SW_MINIMIZE→SW_RESTORE、さらに前面スレッドへの AttachThreadInput + SetForegroundWindow を順に試みる。それでも前面化できない場合は既存の `_assert_foreground()` fail-closed ガードが注入を中止しエラー音で通知する。 |
 
 - 実機検証: Claude DesktopはElectronで入力欄はChatタブの唯一のEditとして露出。UIA ValuePatternは不可のためクリップボード貼り付けに一本化し、注入前に必ずChatタブへ切り替える。

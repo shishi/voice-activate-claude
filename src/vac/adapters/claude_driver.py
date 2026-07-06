@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 
 import win32clipboard  # pywinautoが依存するpywin32に同梱
+import win32con
+import win32gui
 from pywinauto import Desktop
 from pywinauto.findwindows import ElementNotFoundError
 from pywinauto.keyboard import send_keys
@@ -80,7 +82,7 @@ class ClaudeDesktopDriver:
             if window is None:
                 self._launch()
                 window = self._wait_for_window()
-            window.set_focus()
+            self._raise_foreground(window)
             self._inject(window, text)
             self._assert_foreground(window)
             send_keys("{ENTER}")
@@ -107,6 +109,61 @@ class ClaudeDesktopDriver:
                 subprocess.Popen([str(exe)])
                 return
         raise DeliveryError(f"claude.exe not found in: {candidates}")
+
+    def _raise_foreground(self, window) -> None:
+        # バックグラウンドから set_focus だけでは Windows の SetForegroundWindow 制約で
+        # 前面化できないことがある。既知の回避策を順に試し、最後に成否を確認する。
+        # (実機検証: Claude が前面でないと注入が fail-closed で中止されるため必須)
+        try:
+            window.set_focus()  # pywinauto の通常経路(最小化トグル等を内部で試す)
+        except Exception:
+            logger.info("set_focus failed; trying Win32 fallbacks", exc_info=True)
+
+        if self._is_foreground(window):
+            return
+
+        try:
+            hwnd = window.handle
+            # 回避策1: 最小化→復元。OSがユーザー操作扱いして前面化を許すことが多い。
+            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            time.sleep(self._settle_s)
+            if self._is_foreground(window):
+                return
+            # 回避策2: 前面スレッドに一時アタッチして SetForegroundWindow 制約を外す。
+            fg = win32gui.GetForegroundWindow()
+            import win32process
+
+            target_thread, _ = win32process.GetWindowThreadProcessId(hwnd)
+            fg_thread, _ = win32process.GetWindowThreadProcessId(fg) if fg else (0, 0)
+            import win32api
+
+            current_thread = win32api.GetCurrentThreadId()
+            for other in {fg_thread, current_thread}:
+                if other and other != target_thread:
+                    try:
+                        win32process.AttachThreadInput(other, target_thread, True)
+                    except Exception:
+                        logger.info("AttachThreadInput attach failed", exc_info=True)
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            finally:
+                for other in {fg_thread, current_thread}:
+                    if other and other != target_thread:
+                        try:
+                            win32process.AttachThreadInput(other, target_thread, False)
+                        except Exception:
+                            logger.info("AttachThreadInput detach failed", exc_info=True)
+            time.sleep(self._settle_s)
+        except Exception:
+            logger.info("Win32 foreground fallback failed", exc_info=True)
+        # ここで前面化できていなくても、後続の _assert_foreground が fail-closed で守る。
+
+    def _is_foreground(self, window) -> bool:
+        try:
+            return bool(window.is_active())
+        except Exception:
+            return False
 
     def _assert_foreground(self, window) -> None:
         # 通知などにフォーカスを奪われたままENTERを打つと他アプリに誤送信されるため、
