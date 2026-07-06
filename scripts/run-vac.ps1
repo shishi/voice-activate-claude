@@ -1,4 +1,4 @@
-# voice-activate-claude を起動する。リポジトリの場所はこのスクリプトから相対解決するので
+﻿# voice-activate-claude を起動する。リポジトリの場所はこのスクリプトから相対解決するので
 # どこにクローンしても動く。uv は PATH に無い場合があるため絶対パスも探す。
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot   # scripts/ の親 = リポジトリルート

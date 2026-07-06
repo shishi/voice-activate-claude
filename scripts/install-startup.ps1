@@ -1,4 +1,4 @@
-# ログオン時に voice-activate-claude を窓なしで自動起動するタスクを登録する。
+﻿# ログオン時に voice-activate-claude を窓なしで自動起動するタスクを登録する。
 # 通常権限で実行(トレイ常駐・マイク・Claude Desktop操作には対話ユーザーセッションが必要。
 # 管理者/最上位権限だとセッション分離でトレイが見えず失敗する)。
 $ErrorActionPreference = "Stop"
