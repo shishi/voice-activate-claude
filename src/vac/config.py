@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import tomllib
 from dataclasses import dataclass, fields
@@ -87,8 +88,8 @@ def _validate(config: Config) -> None:
         raise ConfigError("max_duration_s must exceed silence_limit_s")
     if isinstance(config.input_device, int) and config.input_device < 0:
         raise ConfigError(f"input_device index must be >= 0, got {config.input_device}")
-    if config.inject_settle_s < 0:
-        raise ConfigError(f"inject_settle_s must be >= 0, got {config.inject_settle_s}")
+    if config.inject_settle_s < 0 or not math.isfinite(config.inject_settle_s):
+        raise ConfigError(f"inject_settle_s must be a finite value >= 0, got {config.inject_settle_s}")
 
 
 def save_input_device(path: Path, device: str | int) -> None:

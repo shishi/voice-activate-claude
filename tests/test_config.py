@@ -226,3 +226,10 @@ def test_inject_settle_s_rejects_non_number(tmp_path):
     p.write_text('inject_settle_s = "fast"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="inject_settle_s"):
         load_config(p)
+
+
+def test_inject_settle_s_rejects_non_finite(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text("inject_settle_s = nan\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="inject_settle_s"):
+        load_config(p)
