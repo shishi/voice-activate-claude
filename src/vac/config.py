@@ -1,6 +1,7 @@
 """src/vac/config.py"""
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from dataclasses import dataclass, fields
@@ -88,7 +89,7 @@ def _validate(config: Config) -> None:
 
 def save_input_device(path: Path, device: str | int) -> None:
     """config.toml の input_device 行を更新(なければ追記)。他の行・コメントは保持する。"""
-    value = f'"{device}"' if isinstance(device, str) else str(device)
+    value = json.dumps(device) if isinstance(device, str) else str(device)
     new_line = f"input_device = {value}"
     if path.exists():
         lines = path.read_text(encoding="utf-8").splitlines()

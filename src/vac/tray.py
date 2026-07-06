@@ -139,13 +139,22 @@ def _make_checked(control: MicControl, name: str):
 def _build_mic_menu(control: MicControl):
     import sounddevice as sd
 
-    from vac.devices import list_input_devices
+    from vac.devices import list_input_devices, resolve_input_device
 
     try:
-        devices = list_input_devices(sd.query_devices())
+        all_devices = sd.query_devices()
+        devices = list_input_devices(all_devices)
     except Exception:
         logger.exception("failed to list input devices")
         devices = []
+    # 起動時の選択(名前/index/None)を実デバイス名に解決してチェック表示を合わせる
+    if control.selected_name is None and control.device is not None:
+        try:
+            resolved_index = resolve_input_device(control.device, all_devices)
+            if resolved_index is not None:
+                control.selected_name = all_devices[resolved_index]["name"]
+        except Exception:
+            logger.exception("failed to resolve configured input device")
     items = [
         pystray.MenuItem(
             name,
