@@ -31,7 +31,7 @@ class MicControl:
 
     def __init__(self, device: str | int | None) -> None:
         self.device = device
-        self.selected_name = device if isinstance(device, str) else None
+        self.selected_index: int | None = device if isinstance(device, int) else None
         self.stop = threading.Event()
         self.restart = threading.Event()
         self._audio = None
@@ -41,12 +41,12 @@ class MicControl:
         with self._lock:
             self._audio = audio
 
-    def switch(self, name: str) -> None:
-        # トレイから呼ばれる。選択を保存し、稼働中のストリームを止めて作り直させる。
-        self.device = name
-        self.selected_name = name
+    def switch(self, index: int) -> None:
+        # トレイから呼ばれる。選んだ行の index をそのまま使い・保存する(同名デバイスの曖昧さ回避)。
+        self.device = index
+        self.selected_index = index
         try:
-            save_input_device(CONFIG_PATH, name)
+            save_input_device(CONFIG_PATH, index)
         except Exception:
             logger.exception("failed to save input_device to config")
         self.restart.set()
@@ -124,15 +124,15 @@ def make_icon_image() -> Image.Image:
     return image
 
 
-def _make_select(control: MicControl, name: str):
+def _make_select(control: MicControl, index: int):
     def select(icon, item) -> None:
-        control.switch(name)
+        control.switch(index)
     return select
 
 
-def _make_checked(control: MicControl, name: str):
+def _make_checked(control: MicControl, index: int):
     def checked(item) -> bool:
-        return control.selected_name == name
+        return control.selected_index == index
     return checked
 
 
@@ -143,27 +143,36 @@ def _build_mic_menu(control: MicControl):
 
     all_devices = []
     devices = []
+    hostapis = []
     try:
         all_devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
         devices = list_input_devices(all_devices)
     except Exception:
         logger.exception("failed to list input devices")
-    # 起動時の選択(名前/index/None)を実デバイス名に解決してチェック表示を合わせる
-    if control.selected_name is None and control.device is not None:
+    # 起動時の選択(名前/index/None)を実 index に解決してチェック表示を合わせる
+    if control.selected_index is None and control.device is not None:
         try:
-            resolved_index = resolve_input_device(control.device, all_devices)
-            if resolved_index is not None:
-                control.selected_name = all_devices[resolved_index]["name"]
+            control.selected_index = resolve_input_device(control.device, all_devices)
         except Exception:
             logger.exception("failed to resolve configured input device")
+
+    def label(index: int, name: str) -> str:
+        # 同名デバイスを区別できるようホストAPI名(MME/WASAPI等)を添える
+        try:
+            api = hostapis[all_devices[index]["hostapi"]]["name"]
+            return f"{name} [{api}]"
+        except Exception:
+            return name
+
     items = [
         pystray.MenuItem(
-            name,
-            _make_select(control, name),
-            checked=_make_checked(control, name),
+            label(index, name),
+            _make_select(control, index),
+            checked=_make_checked(control, index),
             radio=True,
         )
-        for _index, name in devices
+        for index, name in devices
     ]
     return pystray.Menu(*items)
 

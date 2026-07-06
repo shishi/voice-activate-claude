@@ -178,3 +178,10 @@ def test_save_input_device_escapes_quotes_in_name(tmp_path):
     p = tmp_path / "c.toml"
     save_input_device(p, 'Mic "USB"')
     assert load_config(p).input_device == 'Mic "USB"'
+
+
+def test_save_input_device_accepts_int_index(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "c.toml"
+    save_input_device(p, 4)
+    assert load_config(p).input_device == 4
