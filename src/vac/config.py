@@ -88,7 +88,8 @@ def _validate(config: Config) -> None:
 
 
 def save_input_device(path: Path, device: str | int) -> None:
-    """config.toml の input_device 行を更新(なければ追記)。他の行・コメントは保持する。"""
+    """config.toml の input_device 行を1本に更新する。既存のコメント/有効な
+    input_device 行はすべて畳んで重複キーを防ぐ。他の行・コメントは保持する。"""
     value = json.dumps(device) if isinstance(device, str) else str(device)
     new_line = f"input_device = {value}"
     if path.exists():
@@ -97,10 +98,16 @@ def save_input_device(path: Path, device: str | int) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         lines = []
     pattern = re.compile(r"^\s*#?\s*input_device\s*=")
-    for i, line in enumerate(lines):
+    result = []
+    written = False
+    for line in lines:
         if pattern.match(line):
-            lines[i] = new_line
-            break
-    else:
-        lines.append(new_line)
+            if not written:      # 最初の一致だけ新しい値に置換、残りの一致は捨てる
+                result.append(new_line)
+                written = True
+            continue
+        result.append(line)
+    if not written:
+        result.append(new_line)
+    lines = result
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

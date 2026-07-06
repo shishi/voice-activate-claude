@@ -185,3 +185,20 @@ def test_save_input_device_accepts_int_index(tmp_path):
     p = tmp_path / "c.toml"
     save_input_device(p, 4)
     assert load_config(p).input_device == 4
+
+
+def test_save_input_device_collapses_duplicate_lines(tmp_path):
+    from vac.config import save_input_device
+    p = tmp_path / "c.toml"
+    # コメントのテンプレ行 + 既存の有効行の両方があるケース
+    p.write_text(
+        '# input_device = "TEMPLATE"\nwake_threshold = 0.5\ninput_device = 4\n',
+        encoding="utf-8",
+    )
+    save_input_device(p, 7)
+    text = p.read_text(encoding="utf-8")
+    # 有効な input_device 行は1本だけ(重複キーでTOMLが壊れない)
+    active = [ln for ln in text.splitlines() if ln.strip().startswith("input_device")]
+    assert active == ["input_device = 7"]
+    assert load_config(p).input_device == 7   # 読み直せる
+    assert "wake_threshold = 0.5" in text
