@@ -6,3 +6,5 @@ dist/
 *.egg-info/
 models/*
 !models/.gitkeep
+*.lnk
+voice_samples/

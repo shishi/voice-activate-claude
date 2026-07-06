@@ -8,7 +8,7 @@ if (-not (Test-Path $runScript)) { throw "run-vac.ps1 が見つかりません: 
 $repo = Split-Path -Parent $PSScriptRoot
 
 $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-$lnkPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "Voice Activate Claude.lnk"
+$lnkPath = Join-Path $repo "Voice Activate Claude.lnk"   # リポジトリ直下に生成
 
 $shell = New-Object -ComObject WScript.Shell
 $lnk = $shell.CreateShortcut($lnkPath)
@@ -21,4 +21,4 @@ $lnk.Description = "voice-activate-claude を窓なしで起動"
 $lnk.Save()
 
 Write-Host "作成しました: $lnkPath"
-Write-Host "ダブルクリックで窓なし起動します"
+Write-Host "エクスプローラーでリポジトリを開き、このショートカットをダブルクリックで窓なし起動します"

@@ -21,8 +21,8 @@
 ```
 powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1
 ```
-デスクトップに **Voice Activate Claude** ショートカットができる。ダブルクリックで
-タスクバーに黒窓が残らず、トレイにアイコンだけ表示される。
+リポジトリ直下に **Voice Activate Claude.lnk** ショートカットができる。ダブルクリックで
+タスクバーに黒窓が残らず、トレイにアイコンだけ表示される(必要ならデスクトップ等へコピー可)。
 
 <details><summary>手作りする場合(非推奨)</summary>
 
