@@ -69,8 +69,9 @@ class Win32Clipboard:
 
 
 class ClaudeDesktopDriver:
-    def __init__(self, exe_path: str | None = None) -> None:
+    def __init__(self, exe_path: str | None = None, settle_s: float = 0.3) -> None:
         self._exe_path = exe_path
+        self._settle_s = settle_s
         self._clipboard = Win32Clipboard()
 
     def deliver(self, text: str) -> None:
@@ -142,13 +143,13 @@ class ClaudeDesktopDriver:
         chat_tab.wait("exists enabled visible ready", timeout=10)
         self._assert_foreground(window)
         chat_tab.click_input()  # 既にChatタブでも無害(冪等)
-        time.sleep(0.3)  # ビュー切り替えの描画待ち
+        time.sleep(self._settle_s)  # ビュー切り替えの描画待ち
 
         logger.info("starting a new chat")
         new_chat = self._first_existing_button(window, NEW_CHAT_BUTTON_TITLES)
         self._assert_foreground(window)
         new_chat.click_input()  # 毎回まっさらなチャットに送る
-        time.sleep(0.3)  # 新規チャット描画待ち
+        time.sleep(self._settle_s)  # 新規チャット描画待ち
 
         logger.info("focusing chat composer (Edit)")
         composer = window.child_window(control_type="Edit")
@@ -160,4 +161,4 @@ class ClaudeDesktopDriver:
         with ClipboardGuard(self._clipboard, text):
             self._assert_foreground(window)
             send_keys("^v")
-            time.sleep(0.3)  # 貼り付け完了を待ってからクリップボードを復元
+            time.sleep(self._settle_s)  # 貼り付け完了を待ってからクリップボードを復元

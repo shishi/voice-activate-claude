@@ -127,7 +127,7 @@ def check_inject(args: argparse.Namespace) -> int:
     # どの注入経路(UIA ValuePattern / クリップボード貼り付け)を使ったかを
     # 画面で確認できるよう、診断時だけドライバのINFOログを出す。
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    driver = ClaudeDesktopDriver(exe_path=args.exe)
+    driver = ClaudeDesktopDriver(exe_path=args.exe, settle_s=args.settle)
     print(f"Claude Desktopに注入します: {args.text!r}")
     driver.deliver(args.text)
     print("OK: Claude Desktopにテキストが送信されていれば成功")
@@ -229,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     inject_parser = sub.add_parser("inject", help="Claude Desktopにテキストを送る")
     inject_parser.add_argument("text")
     inject_parser.add_argument("--exe", default=None, help="claude.exe のパス")
+    inject_parser.add_argument("--settle", type=float, default=0.3, help="注入時の各待機秒数(既定0.3、下げると速いが失敗しやすい)")
     inject_parser.set_defaults(func=check_inject)
 
     sub.add_parser("devices", help="入力/出力デバイス一覧を表示する").set_defaults(func=check_devices)

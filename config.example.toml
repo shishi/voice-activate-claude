@@ -11,3 +11,4 @@ max_duration_s = 30.0            # 1回の発話の最大録音時間
 # claude_exe_path = 'C:\Users\you\AppData\Local\AnthropicClaude\claude.exe'
 # input_device = "BRIO"          # マイクの名前(部分一致)かindex。未指定ならOS既定
 sounds_enabled = true
+# inject_settle_s = 0.3          # Claude Desktop注入時の各待機秒数。下げると速いが描画前クリックで失敗しやすい

@@ -71,7 +71,7 @@ def build_components(config: Config) -> dict:
         "transcriber": FasterWhisperTranscriber(
             model_size=config.whisper_model, language=config.language
         ),
-        "deliverer": ClaudeDesktopDriver(exe_path=config.claude_exe_path),
+        "deliverer": ClaudeDesktopDriver(exe_path=config.claude_exe_path, settle_s=config.inject_settle_s),
     }
 
 

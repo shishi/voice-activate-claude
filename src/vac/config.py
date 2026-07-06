@@ -24,6 +24,7 @@ class Config:
     claude_exe_path: str | None = None
     input_device: str | int | None = None
     sounds_enabled: bool = True
+    inject_settle_s: float = 0.3
 
 
 # 各フィールドの期待型("number" は bool を除く int/float)
@@ -38,6 +39,7 @@ _FIELD_TYPES: dict[str, object] = {
     "claude_exe_path": str,
     "input_device": "device",
     "sounds_enabled": bool,
+    "inject_settle_s": "number",
 }
 
 
@@ -85,6 +87,8 @@ def _validate(config: Config) -> None:
         raise ConfigError("max_duration_s must exceed silence_limit_s")
     if isinstance(config.input_device, int) and config.input_device < 0:
         raise ConfigError(f"input_device index must be >= 0, got {config.input_device}")
+    if config.inject_settle_s < 0:
+        raise ConfigError(f"inject_settle_s must be >= 0, got {config.inject_settle_s}")
 
 
 def save_input_device(path: Path, device: str | int) -> None:

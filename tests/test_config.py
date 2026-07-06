@@ -202,3 +202,27 @@ def test_save_input_device_collapses_duplicate_lines(tmp_path):
     assert active == ["input_device = 7"]
     assert load_config(p).input_device == 7   # 読み直せる
     assert "wake_threshold = 0.5" in text
+
+
+def test_inject_settle_s_defaults():
+    assert Config().inject_settle_s == 0.3
+
+
+def test_inject_settle_s_from_toml(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text("inject_settle_s = 0.15\n", encoding="utf-8")
+    assert load_config(p).inject_settle_s == 0.15
+
+
+def test_inject_settle_s_rejects_negative(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text("inject_settle_s = -0.1\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="inject_settle_s"):
+        load_config(p)
+
+
+def test_inject_settle_s_rejects_non_number(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('inject_settle_s = "fast"\n', encoding="utf-8")
+    with pytest.raises(ConfigError, match="inject_settle_s"):
+        load_config(p)
