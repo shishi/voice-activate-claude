@@ -1,6 +1,7 @@
 """src/vac/adapters/claude_driver.py — Claude Desktopへのテキスト注入(Windows専用)"""
 from __future__ import annotations
 
+import contextlib
 import logging
 import subprocess
 import time
@@ -17,6 +18,16 @@ from vac.clipboard import ClipboardGuard
 from vac.ports import DeliveryError
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _timed(label: str):
+    # 各ステップの所要時間をINFOログに出す(遅さの原因切り分け用)。
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        logger.info("%s: %.2fs", label, time.monotonic() - start)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
 NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットボタン(ロケール差を吸収)
@@ -78,11 +89,13 @@ class ClaudeDesktopDriver:
 
     def deliver(self, text: str) -> None:
         try:
-            window = self._find_window()
+            with _timed("find_window"):
+                window = self._find_window()
             if window is None:
                 self._launch()
                 window = self._wait_for_window()
-            self._raise_foreground(window)
+            with _timed("raise_foreground"):
+                self._raise_foreground(window)
             self._inject(window, text)
             self._assert_foreground(window)
             send_keys("{ENTER}")
@@ -196,21 +209,24 @@ class ClaudeDesktopDriver:
         # してクリップボード貼り付けする。物理クリック/貼り付けの各直前で前面を検証し、
         # 前面化できないなら一切操作しない(座標クリックの誤爆を防ぐ fail-closed)。
         logger.info("switching to Chat tab")
-        chat_tab = window.child_window(title="Chat", control_type="Button")
-        chat_tab.wait("exists enabled visible ready", timeout=10)
+        with _timed("find Chat tab"):
+            chat_tab = window.child_window(title="Chat", control_type="Button")
+            chat_tab.wait("exists enabled visible ready", timeout=10)
         self._assert_foreground(window)
         chat_tab.click_input()  # 既にChatタブでも無害(冪等)
         time.sleep(self._settle_s)  # ビュー切り替えの描画待ち
 
         logger.info("starting a new chat")
-        new_chat = self._first_existing_button(window, NEW_CHAT_BUTTON_TITLES)
+        with _timed("find new-chat button"):
+            new_chat = self._first_existing_button(window, NEW_CHAT_BUTTON_TITLES)
         self._assert_foreground(window)
         new_chat.click_input()  # 毎回まっさらなチャットに送る
         time.sleep(self._settle_s)  # 新規チャット描画待ち
 
         logger.info("focusing chat composer (Edit)")
-        composer = window.child_window(control_type="Edit")
-        composer.wait("exists enabled visible ready", timeout=10)
+        with _timed("find composer"):
+            composer = window.child_window(control_type="Edit")
+            composer.wait("exists enabled visible ready", timeout=10)
         self._assert_foreground(window)
         composer.click_input()  # 唯一のEdit=Chat入力欄を確実にフォーカス
 
