@@ -1,4 +1,4 @@
-﻿# デスクトップに「窓なし起動」ショートカットを確実に生成する。
+﻿# リポジトリ直下に「窓なし起動」ショートカットを確実に生成する。
 # 手作りだと .lnk のリンク先/引数の分割を誤りやすいので、TargetPath/Arguments/
 # WorkingDirectory を明示セットして作る。
 $ErrorActionPreference = "Stop"

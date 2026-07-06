@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1
 
 <details><summary>手作りする場合(非推奨)</summary>
 
-1. デスクトップを右クリック → **新規作成** → **ショートカット**
+1. 任意のフォルダ(リポジトリ内でもよい)を右クリック → **新規作成** → **ショートカット**
 2. 「項目の場所」に以下を貼り付け(`<repo>` は実際のパスに変更):
    ```
    powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<repo>\scripts\run-vac.ps1"
