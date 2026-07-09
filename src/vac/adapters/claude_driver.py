@@ -197,28 +197,58 @@ class ClaudeDesktopDriver:
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
     def _first_existing(self, window, titles, control_type, timeout=10):
-        # 全候補を即時チェックし、操作可能(存在かつ visible/enabled)になった最初の要素を返す。
-        # 無ければ少し待って再チェック(全体で timeout 秒)。id は毎回変わる
-        # (base-ui-_r_...)ので name+control_type で掴む。候補ごとに待つと空振りが
-        # 積算するため、全候補を1周ずつ即時プローブ→0.2秒待ちを締め切りまで繰り返す。
-        # exists だけだと描画途中の未操作要素をクリックして失敗しうるので ready を確認する。
+        # child_window の遅延評価は呼ぶ度にツリー全体を再走査して激遅(Electronの巨大UIA)。
+        # descendants(control_type=...) を1回だけ回して name で絞り、解決済み wrapper を返す。
+        # 起動直後・遷移直後は目的要素が未描画のことがあるので、全体 timeout 秒まで再走査する。
+        # id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
+        wanted = tuple(titles)
         deadline = time.monotonic() + timeout
         while True:
-            for title in titles:
-                element = window.child_window(title=title, control_type=control_type)
+            try:
+                candidates = window.descendants(control_type=control_type)
+            except Exception:
+                candidates = []
+            # visible/enabled を優先しつつ、名前一致を探す
+            fallback = None
+            for element in candidates:
                 try:
-                    if (
-                        element.exists(timeout=0)
-                        and element.is_visible()
-                        and element.is_enabled()
-                    ):
-                        return element
+                    if element.window_text() not in wanted:
+                        continue
                 except Exception:
-                    # プローブ中に要素が消えた等。次の候補/次の周回で再試行する。
                     continue
+                try:
+                    if element.is_visible() and element.is_enabled():
+                        return element
+                    if fallback is None:
+                        fallback = element
+                except Exception:
+                    if fallback is None:
+                        fallback = element
+            if fallback is not None:
+                return fallback
             if time.monotonic() >= deadline:
                 raise DeliveryError(f"{control_type} not found or not ready (tried {titles})")
-            time.sleep(0.2)
+            time.sleep(0.3)
+
+    def _first_edit(self, window, timeout=10):
+        # 入力欄は唯一の Edit。descendants を1回で拾い、解決済み wrapper を返す。
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                edits = window.descendants(control_type="Edit")
+            except Exception:
+                edits = []
+            for edit in edits:
+                try:
+                    if edit.is_visible() and edit.is_enabled():
+                        return edit
+                except Exception:
+                    continue
+            if edits and time.monotonic() >= deadline:
+                return edits[0]  # 可視判定に失敗しても唯一のEditなら使う
+            if time.monotonic() >= deadline:
+                raise DeliveryError("chat composer (Edit) not found")
+            time.sleep(0.3)
 
     def _inject(self, window, text: str) -> None:
         # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
@@ -250,8 +280,7 @@ class ClaudeDesktopDriver:
 
         logger.info("focusing chat composer (Edit)")
         with _timed("find composer"):
-            composer = window.child_window(control_type="Edit")
-            composer.wait("exists enabled visible ready", timeout=10)
+            composer = self._first_edit(window)
         self._assert_foreground(window)
         composer.click_input()  # 唯一のEdit=入力欄を確実にフォーカス
 
