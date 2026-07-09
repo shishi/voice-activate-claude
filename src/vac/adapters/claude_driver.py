@@ -196,12 +196,14 @@ class ClaudeDesktopDriver:
             time.sleep(0.5)
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
-    def _first_existing(self, window, titles, control_type):
+    def _first_existing(self, window, titles, control_type, timeout=10):
         # 既知ラベルを順に試し、最初に存在した要素を返す(UI言語差・ラベル変更に強い)。
         # id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
+        # exists は要素があれば即返るので、timeout を長めにしても正常時は遅くならない
+        # (起動直後・低速機での描画遅れだけ救う)。
         for title in titles:
             element = window.child_window(title=title, control_type=control_type)
-            if element.exists(timeout=2):
+            if element.exists(timeout=timeout):
                 return element
         raise DeliveryError(f"{control_type} not found (tried {titles})")
 
