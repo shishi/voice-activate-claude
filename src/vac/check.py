@@ -154,8 +154,13 @@ def check_tree(args: argparse.Namespace) -> int:
                 inputs.append(
                     f"{ct:10} name={ei.name!r} id={ei.automation_id!r} rect={ei.rectangle}"
                 )
-            elif ct in {"Button", "TabItem", "Tab", "MenuItem"} and ei.name:
-                named.append(f"{ct:10} name={ei.name!r} id={ei.automation_id!r}")
+            elif ct in {
+                "Button", "TabItem", "Tab", "MenuItem",
+                "RadioButton", "CheckBox", "ListItem",
+            } and ei.name:
+                named.append(
+                    f"{ct:12} name={ei.name!r} id={ei.automation_id!r} rect={ei.rectangle}"
+                )
         except Exception:
             pass
     print("=== control_type の数 ===")
