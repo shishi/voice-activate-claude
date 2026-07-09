@@ -203,11 +203,19 @@ class ClaudeDesktopDriver:
         # まで再走査する。id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
         wanted = tuple(titles)
         deadline = time.monotonic() + timeout
+        first_scan = True
         while True:
+            scan_start = time.monotonic()
             try:
                 candidates = window.descendants(control_type=control_type)
             except Exception:
                 candidates = []
+            if first_scan:
+                logger.info(
+                    "  descendants(%s): %.2fs, %d elems",
+                    control_type, time.monotonic() - scan_start, len(candidates),
+                )
+                first_scan = False
             for element in candidates:
                 try:
                     if element.window_text() in wanted and element.is_visible() and element.is_enabled():
@@ -221,11 +229,19 @@ class ClaudeDesktopDriver:
     def _first_edit(self, window, timeout=10):
         # 入力欄は唯一の Edit。descendants を1回で拾い、visible/enabled な解決済み wrapper を返す。
         deadline = time.monotonic() + timeout
+        first_scan = True
         while True:
+            scan_start = time.monotonic()
             try:
                 edits = window.descendants(control_type="Edit")
             except Exception:
                 edits = []
+            if first_scan:
+                logger.info(
+                    "  descendants(Edit): %.2fs, %d elems",
+                    time.monotonic() - scan_start, len(edits),
+                )
+                first_scan = False
             for edit in edits:
                 try:
                     if edit.is_visible() and edit.is_enabled():
@@ -269,6 +285,12 @@ class ClaudeDesktopDriver:
             composer = self._first_edit(window)
         self._assert_foreground(window)
         composer.click_input()  # 唯一のEdit=入力欄を確実にフォーカス
+
+        logger.info("clearing composer")
+        self._assert_foreground(window)
+        send_keys("^a")           # 全選択
+        send_keys("{DELETE}")     # 前回の未送信テキストを消す(残り混入を防ぐ)
+        time.sleep(self._settle_s)
 
         logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):
