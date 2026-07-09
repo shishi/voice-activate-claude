@@ -289,6 +289,7 @@ class ClaudeDesktopDriver:
         logger.info("clearing composer")
         self._assert_foreground(window)
         send_keys("^a")           # 全選択
+        self._assert_foreground(window)   # 破壊的なDelete直前に再確認(誤爆で他アプリを消さない)
         send_keys("{DELETE}")     # 前回の未送信テキストを消す(残り混入を防ぐ)
         time.sleep(self._settle_s)
 
