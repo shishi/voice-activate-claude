@@ -30,7 +30,9 @@ def _timed(label: str):
         logger.info("%s: %.2fs", label, time.monotonic() - start)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
-NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットボタン(ロケール差を吸収)
+HOME_TAB_TITLES = ("Home",)                    # ホーム(チャット一覧)へ戻るタブ
+CHAT_MODE_TITLES = ("チャット", "Chat")         # 入力欄のモードトグル(チャット/Cowork)
+NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットのみ。「新しいタスク」は使わない
 LAUNCH_TIMEOUT_S = 15.0
 DEFAULT_EXE_CANDIDATES = [
     # 標準的なインストール先。実機で `where claude` 等で確認して必要なら追加する
@@ -194,41 +196,49 @@ class ClaudeDesktopDriver:
             time.sleep(0.5)
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
-    def _first_existing_button(self, window, titles):
-        # 既知ラベルを順に試し、最初に存在したボタンを返す(UI言語差・ラベル変更に強い)
+    def _first_existing(self, window, titles, control_type):
+        # 既知ラベルを順に試し、最初に存在した要素を返す(UI言語差・ラベル変更に強い)。
+        # id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
         for title in titles:
-            button = window.child_window(title=title, control_type="Button")
-            if button.exists(timeout=2):
-                return button
-        raise DeliveryError(f"new chat button not found (tried {titles})")
+            element = window.child_window(title=title, control_type=control_type)
+            if element.exists(timeout=2):
+                return element
+        raise DeliveryError(f"{control_type} not found (tried {titles})")
 
     def _inject(self, window, text: str) -> None:
-        # 要望: どのタブ(Chat/Cowork/Code)を開いていても、必ず Chat タブで
-        # 毎回「新規チャット」を開いてから送る。ElectronのcontenteditableはUIA
-        # ValuePatternが効かない/黙って失敗しうるため、入力欄を実クリックでフォーカス
-        # してクリップボード貼り付けする。物理クリック/貼り付けの各直前で前面を検証し、
-        # 前面化できないなら一切操作しない(座標クリックの誤爆を防ぐ fail-closed)。
-        logger.info("switching to Chat tab")
-        with _timed("find Chat tab"):
-            chat_tab = window.child_window(title="Chat", control_type="Button")
-            chat_tab.wait("exists enabled visible ready", timeout=10)
+        # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
+        # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
+        # 「新しいタスク」は絶対に押さない(見つからなければ fail-closed 中止)。
+        # ElectronのcontenteditableはUIA ValuePatternが効かない/黙って失敗しうるため、
+        # 入力欄を実クリックでフォーカスしてクリップボード貼り付けする。物理クリック/
+        # 貼り付けの各直前で前面を検証し、前面化できないなら一切操作しない(誤爆防止)。
+        logger.info("going to Home")
+        with _timed("find Home tab"):
+            home = self._first_existing(window, HOME_TAB_TITLES, "Button")
         self._assert_foreground(window)
-        chat_tab.click_input()  # 既にChatタブでも無害(冪等)
-        time.sleep(self._settle_s)  # ビュー切り替えの描画待ち
+        home.click_input()  # 既にHomeでも無害
+        time.sleep(self._settle_s)
+
+        logger.info("selecting Chat mode")
+        with _timed("find Chat mode toggle"):
+            chat_mode = self._first_existing(window, CHAT_MODE_TITLES, "RadioButton")
+        self._assert_foreground(window)
+        chat_mode.click_input()  # Cowork→チャット。既にチャットでも無害
+        time.sleep(self._settle_s)
 
         logger.info("starting a new chat")
         with _timed("find new-chat button"):
-            new_chat = self._first_existing_button(window, NEW_CHAT_BUTTON_TITLES)
+            new_chat = self._first_existing(window, NEW_CHAT_BUTTON_TITLES, "Button")
         self._assert_foreground(window)
-        new_chat.click_input()  # 毎回まっさらなチャットに送る
-        time.sleep(self._settle_s)  # 新規チャット描画待ち
+        new_chat.click_input()  # 毎回まっさらなチャットに送る(「新しいタスク」は使わない)
+        time.sleep(self._settle_s)
 
         logger.info("focusing chat composer (Edit)")
         with _timed("find composer"):
             composer = window.child_window(control_type="Edit")
             composer.wait("exists enabled visible ready", timeout=10)
         self._assert_foreground(window)
-        composer.click_input()  # 唯一のEdit=Chat入力欄を確実にフォーカス
+        composer.click_input()  # 唯一のEdit=入力欄を確実にフォーカス
 
         logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):

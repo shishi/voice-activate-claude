@@ -168,3 +168,4 @@ CLAUDE.md の TDD 方針(Red → Green → Refactor)に従う。
 | SetForegroundWindow の制約(Windows はバックグラウンドからの前面化を制限する場合がある) | ドライバが `_raise_foreground()` で積極的に前面化する: まず pywinauto の `set_focus()`、失敗時は SW_MINIMIZE→SW_RESTORE、さらに前面スレッドへの AttachThreadInput + SetForegroundWindow を順に試みる。それでも前面化できない場合は既存の `_assert_foreground()` fail-closed ガードが注入を中止しエラー音で通知する。 |
 
 - 実機検証: Claude DesktopはElectronで入力欄はChatタブの唯一のEditとして露出。UIA ValuePatternは不可のためクリップボード貼り付けに一本化し、注入前に必ずChatタブへ切り替える。
+- 新UI対応(2026-07): Claude Desktop更新でタブがHome/Codeに、入力欄にチャット/Coworkトグル追加。注入は Home→チャットモード選択→新規チャット→Edit貼付→Enter。「新しいタスク」は使わない(fail-closed)。
