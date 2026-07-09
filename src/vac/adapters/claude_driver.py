@@ -197,18 +197,27 @@ class ClaudeDesktopDriver:
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
     def _first_existing(self, window, titles, control_type, timeout=10):
-        # 全候補を即時チェックし、無ければ少し待って再チェック(全体で timeout 秒)。
-        # id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
-        # ロケール差でラベルを複数試すが、候補ごとに待つと空振りが積算するので、
-        # 「全候補を1周ずつ即時プローブ→0.2秒待ち」を締め切りまで繰り返す(存在すれば即返る)。
+        # 全候補を即時チェックし、操作可能(存在かつ visible/enabled)になった最初の要素を返す。
+        # 無ければ少し待って再チェック(全体で timeout 秒)。id は毎回変わる
+        # (base-ui-_r_...)ので name+control_type で掴む。候補ごとに待つと空振りが
+        # 積算するため、全候補を1周ずつ即時プローブ→0.2秒待ちを締め切りまで繰り返す。
+        # exists だけだと描画途中の未操作要素をクリックして失敗しうるので ready を確認する。
         deadline = time.monotonic() + timeout
         while True:
             for title in titles:
                 element = window.child_window(title=title, control_type=control_type)
-                if element.exists(timeout=0):  # 即時チェック(待たない)
-                    return element
+                try:
+                    if (
+                        element.exists(timeout=0)
+                        and element.is_visible()
+                        and element.is_enabled()
+                    ):
+                        return element
+                except Exception:
+                    # プローブ中に要素が消えた等。次の候補/次の周回で再試行する。
+                    continue
             if time.monotonic() >= deadline:
-                raise DeliveryError(f"{control_type} not found (tried {titles})")
+                raise DeliveryError(f"{control_type} not found or not ready (tried {titles})")
             time.sleep(0.2)
 
     def _inject(self, window, text: str) -> None:
