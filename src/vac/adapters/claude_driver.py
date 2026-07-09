@@ -198,9 +198,9 @@ class ClaudeDesktopDriver:
 
     def _first_existing(self, window, titles, control_type, timeout=10):
         # child_window の遅延評価は呼ぶ度にツリー全体を再走査して激遅(Electronの巨大UIA)。
-        # descendants(control_type=...) を1回だけ回して name で絞り、解決済み wrapper を返す。
-        # 起動直後・遷移直後は目的要素が未描画のことがあるので、全体 timeout 秒まで再走査する。
-        # id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
+        # descendants(control_type=...) を1回だけ回して name で絞り、visible/enabled になった
+        # 解決済み wrapper を返す。起動直後・遷移直後は未描画のことがあるので全体 timeout 秒
+        # まで再走査する。id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
         wanted = tuple(titles)
         deadline = time.monotonic() + timeout
         while True:
@@ -208,30 +208,18 @@ class ClaudeDesktopDriver:
                 candidates = window.descendants(control_type=control_type)
             except Exception:
                 candidates = []
-            # visible/enabled を優先しつつ、名前一致を探す
-            fallback = None
             for element in candidates:
                 try:
-                    if element.window_text() not in wanted:
-                        continue
+                    if element.window_text() in wanted and element.is_visible() and element.is_enabled():
+                        return element
                 except Exception:
                     continue
-                try:
-                    if element.is_visible() and element.is_enabled():
-                        return element
-                    if fallback is None:
-                        fallback = element
-                except Exception:
-                    if fallback is None:
-                        fallback = element
-            if fallback is not None:
-                return fallback
             if time.monotonic() >= deadline:
                 raise DeliveryError(f"{control_type} not found or not ready (tried {titles})")
             time.sleep(0.3)
 
     def _first_edit(self, window, timeout=10):
-        # 入力欄は唯一の Edit。descendants を1回で拾い、解決済み wrapper を返す。
+        # 入力欄は唯一の Edit。descendants を1回で拾い、visible/enabled な解決済み wrapper を返す。
         deadline = time.monotonic() + timeout
         while True:
             try:
@@ -244,10 +232,8 @@ class ClaudeDesktopDriver:
                         return edit
                 except Exception:
                     continue
-            if edits and time.monotonic() >= deadline:
-                return edits[0]  # 可視判定に失敗しても唯一のEditなら使う
             if time.monotonic() >= deadline:
-                raise DeliveryError("chat composer (Edit) not found")
+                raise DeliveryError("chat composer (Edit) not found or not ready")
             time.sleep(0.3)
 
     def _inject(self, window, text: str) -> None:
