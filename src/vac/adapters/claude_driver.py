@@ -30,7 +30,7 @@ def _timed(label: str):
         logger.info("%s: %.2fs", label, time.monotonic() - start)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
-HOME_TAB_TITLES = ("Home",)                    # ホーム(チャット一覧)へ戻るタブ
+HOME_TAB_TITLES = ("Home", "ホーム")            # ホーム(チャット一覧)へ戻るタブ。ロケール差を吸収
 CHAT_MODE_TITLES = ("チャット", "Chat")         # 入力欄のモードトグル(チャット/Cowork)
 NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットのみ。「新しいタスク」は使わない
 LAUNCH_TIMEOUT_S = 15.0
