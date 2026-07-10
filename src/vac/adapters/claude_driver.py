@@ -257,9 +257,10 @@ class ClaudeDesktopDriver:
     def _inject(self, window, text: str) -> None:
         # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
         # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
-        # 「新規チャット」はチャットモードにして初めて出現するので、スナップショットは
-        # 2回に分ける: ①Home+チャットトグル(最初から在る) ②切替後に新規チャット+入力欄。
-        # descendants は型に関係なく約4.5秒なので、まとめ取りで呼び出し回数を抑える。
+        # 「新規チャット」はチャットモードにして初めて出現し、押すと内容エリアが再描画
+        # されて入力欄が差し替わるため、スナップショットは3回に分ける:
+        # ①Home+チャットトグル(最初から在る) ②切替後に新規チャット ③新規チャット押下後に入力欄。
+        # descendants は型に関係なく約4.5秒なので、各スキャンでまとめ取りして回数を抑える。
         with _timed("snapshot home+chat-mode"):
             first = self._resolve(window, [
                 ("home", HOME_TAB_TITLES, "Button"),
@@ -276,10 +277,9 @@ class ClaudeDesktopDriver:
         first["chat_mode"].click_input()  # Cowork→チャット。既にチャットでも無害
         time.sleep(self._settle_s)
 
-        with _timed("snapshot new-chat+composer"):
+        with _timed("snapshot new-chat"):
             second = self._resolve(window, [
                 ("new_chat", NEW_CHAT_BUTTON_TITLES, "Button"),
-                ("composer", (), "Edit"),
             ])
 
         logger.info("starting a new chat")
@@ -287,9 +287,16 @@ class ClaudeDesktopDriver:
         second["new_chat"].click_input()  # 「新しいタスク」は使わない
         time.sleep(self._settle_s)
 
+        # 新規チャット作成で内容エリアが再描画されるため、入力欄はここで取り直す
+        # (事前取得した wrapper は stale になりうる)。
+        with _timed("snapshot composer"):
+            third = self._resolve(window, [
+                ("composer", (), "Edit"),
+            ])
+
         logger.info("focusing chat composer (Edit)")
         self._assert_foreground(window)
-        second["composer"].click_input()
+        third["composer"].click_input()
 
         logger.info("clearing composer")
         self._assert_foreground(window)
