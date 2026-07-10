@@ -28,6 +28,7 @@
 - [ ] 貼り付け→Enterの間に別ウィンドウへフォーカスを移すと、誤爆せず DeliveryError(エラー音)で中止される
 - [ ] 別アプリを前面にした状態で `vac.check inject` を実行 → Claudeが自動で前面に出て送信される(フォアグラウンド強制が効く)
 - [ ] inject_settle_s を下げても(例0.15)注入が失敗しないか確認。失敗するなら値を戻す
+- [ ] vac.check inject --com-mode mta / sta / default で descendants の秒数を比較(速くなるモードがあれば本適用を検討)
 - [ ] Claude Desktop のウィンドウタイトルが `^Claude(\s.*)?$` にマッチする / 入力欄が唯一のEditとして見える(`vac.check tree` で確認)
 
 ## フォーカス安全性(誤送信防止)

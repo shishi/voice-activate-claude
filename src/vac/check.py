@@ -121,12 +121,22 @@ def check_devices(args: argparse.Namespace) -> int:
 
 def check_inject(args: argparse.Namespace) -> int:
     import logging
+    import sys
+
+    # COMアパートメントモードの速度影響を測る実験用(この診断パスのみ。常駐trayには影響しない)。
+    # pywinauto は import 前の sys.coinit_flags を見る。0=MTA(既定), 2=STA。
+    if args.com_mode == "mta":
+        sys.coinit_flags = 0
+    elif args.com_mode == "sta":
+        sys.coinit_flags = 2
+    # "default" は何もしない(pywinauto の既定 MTA)
 
     from vac.adapters.claude_driver import ClaudeDesktopDriver
 
     # どの注入経路(UIA ValuePattern / クリップボード貼り付け)を使ったかを
     # 画面で確認できるよう、診断時だけドライバのINFOログを出す。
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger(__name__).info("com_mode=%s", args.com_mode)
     driver = ClaudeDesktopDriver(exe_path=args.exe, settle_s=args.settle)
     print(f"Claude Desktopに注入します: {args.text!r}")
     driver.deliver(args.text)
@@ -235,6 +245,12 @@ def main(argv: list[str] | None = None) -> int:
     inject_parser.add_argument("text")
     inject_parser.add_argument("--exe", default=None, help="claude.exe のパス")
     inject_parser.add_argument("--settle", type=float, default=0.3, help="注入時の各待機秒数(既定0.3、下げると速いが失敗しやすい)")
+    inject_parser.add_argument(
+        "--com-mode",
+        choices=("default", "mta", "sta"),
+        default="default",
+        help="COMアパートメントモード実験(default/mta/sta)。descendantsの速度影響を測る用",
+    )
     inject_parser.set_defaults(func=check_inject)
 
     sub.add_parser("devices", help="入力/出力デバイス一覧を表示する").set_defaults(func=check_devices)
