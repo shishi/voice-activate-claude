@@ -196,11 +196,11 @@ class ClaudeDesktopDriver:
             time.sleep(0.5)
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
-    def _snapshot_controls(self, window, timeout=10):
-        # descendants() は control_type に関係なくツリー全走査で約4.5秒。型ごとに4回呼ぶと
-        # 遅いので、1回だけ全要素を取得し、必要なコントロールをまとめて解決する。
-        # 4つ(Home / チャットトグル / 新規チャット / 入力欄Edit)は同一のHome画面に同居する。
-        # visible+enabled になるまで全体 timeout 秒まで再スナップショットする(fail-closed)。
+    def _resolve(self, window, specs, timeout=10):
+        # descendants() は型に関係なく約4.5秒(ツリー全走査)なので、1スキャンで
+        # 複数コントロールをまとめて解決する。specs は (label, titles, control_type) の
+        # リスト。control_type が "Edit" のときは name 不問で唯一のEditを拾う。
+        # visible+enabled になるまで全体 timeout 秒まで再スキャン(fail-closed)。
         deadline = time.monotonic() + timeout
         first_scan = True
         while True:
@@ -213,22 +213,16 @@ class ClaudeDesktopDriver:
                 logger.info("  descendants(all): %.2fs, %d elems",
                             time.monotonic() - scan_start, len(elements))
                 first_scan = False
-
-            home = self._pick(elements, HOME_TAB_TITLES, "Button")
-            chat_mode = self._pick(elements, CHAT_MODE_TITLES, "RadioButton")
-            new_chat = self._pick(elements, NEW_CHAT_BUTTON_TITLES, "Button")
-            composer = self._pick_edit(elements)
-
-            if home and chat_mode and new_chat and composer:
-                return home, chat_mode, new_chat, composer
-
+            resolved = {}
+            for label, titles, control_type in specs:
+                if control_type == "Edit":
+                    resolved[label] = self._pick_edit(elements)
+                else:
+                    resolved[label] = self._pick(elements, titles, control_type)
+            if all(resolved.values()):
+                return resolved
             if time.monotonic() >= deadline:
-                missing = [
-                    label for label, val in (
-                        ("Home", home), ("Chat mode", chat_mode),
-                        ("new chat", new_chat), ("composer(Edit)", composer),
-                    ) if not val
-                ]
+                missing = [label for label, val in resolved.items() if not val]
                 raise DeliveryError(f"controls not found or not ready: {missing}")
             time.sleep(0.3)
 
@@ -263,30 +257,39 @@ class ClaudeDesktopDriver:
     def _inject(self, window, text: str) -> None:
         # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
         # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
-        # 「新しいタスク」は絶対に押さない(見つからなければ fail-closed 中止)。
-        # descendants は型に関係なく約4.5秒かかるため、1回のスナップショットで
-        # Home/チャット/新規チャット/入力欄をまとめて解決する(4回→1回)。
-        with _timed("snapshot controls"):
-            home, chat_mode, new_chat, composer = self._snapshot_controls(window)
+        # 「新規チャット」はチャットモードにして初めて出現するので、スナップショットは
+        # 2回に分ける: ①Home+チャットトグル(最初から在る) ②切替後に新規チャット+入力欄。
+        # descendants は型に関係なく約4.5秒なので、まとめ取りで呼び出し回数を抑える。
+        with _timed("snapshot home+chat-mode"):
+            first = self._resolve(window, [
+                ("home", HOME_TAB_TITLES, "Button"),
+                ("chat_mode", CHAT_MODE_TITLES, "RadioButton"),
+            ])
 
         logger.info("going to Home")
         self._assert_foreground(window)
-        home.click_input()
+        first["home"].click_input()
         time.sleep(self._settle_s)
 
         logger.info("selecting Chat mode")
         self._assert_foreground(window)
-        chat_mode.click_input()  # Cowork→チャット。既にチャットでも無害
+        first["chat_mode"].click_input()  # Cowork→チャット。既にチャットでも無害
         time.sleep(self._settle_s)
+
+        with _timed("snapshot new-chat+composer"):
+            second = self._resolve(window, [
+                ("new_chat", NEW_CHAT_BUTTON_TITLES, "Button"),
+                ("composer", (), "Edit"),
+            ])
 
         logger.info("starting a new chat")
         self._assert_foreground(window)
-        new_chat.click_input()  # 「新しいタスク」は使わない
+        second["new_chat"].click_input()  # 「新しいタスク」は使わない
         time.sleep(self._settle_s)
 
         logger.info("focusing chat composer (Edit)")
         self._assert_foreground(window)
-        composer.click_input()
+        second["composer"].click_input()
 
         logger.info("clearing composer")
         self._assert_foreground(window)
