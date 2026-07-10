@@ -196,105 +196,107 @@ class ClaudeDesktopDriver:
             time.sleep(0.5)
         raise DeliveryError(f"window did not appear within {LAUNCH_TIMEOUT_S}s")
 
-    def _first_existing(self, window, titles, control_type, timeout=10):
-        # child_window の遅延評価は呼ぶ度にツリー全体を再走査して激遅(Electronの巨大UIA)。
-        # descendants(control_type=...) を1回だけ回して name で絞り、visible/enabled になった
-        # 解決済み wrapper を返す。起動直後・遷移直後は未描画のことがあるので全体 timeout 秒
-        # まで再走査する。id は毎回変わる(base-ui-_r_...)ので name+control_type で掴む。
-        wanted = tuple(titles)
+    def _snapshot_controls(self, window, timeout=10):
+        # descendants() は control_type に関係なくツリー全走査で約4.5秒。型ごとに4回呼ぶと
+        # 遅いので、1回だけ全要素を取得し、必要なコントロールをまとめて解決する。
+        # 4つ(Home / チャットトグル / 新規チャット / 入力欄Edit)は同一のHome画面に同居する。
+        # visible+enabled になるまで全体 timeout 秒まで再スナップショットする(fail-closed)。
         deadline = time.monotonic() + timeout
         first_scan = True
         while True:
             scan_start = time.monotonic()
             try:
-                candidates = window.descendants(control_type=control_type)
+                elements = window.descendants()
             except Exception:
-                candidates = []
+                elements = []
             if first_scan:
-                logger.info(
-                    "  descendants(%s): %.2fs, %d elems",
-                    control_type, time.monotonic() - scan_start, len(candidates),
-                )
+                logger.info("  descendants(all): %.2fs, %d elems",
+                            time.monotonic() - scan_start, len(elements))
                 first_scan = False
-            for element in candidates:
-                try:
-                    if element.window_text() in wanted and element.is_visible() and element.is_enabled():
-                        return element
-                except Exception:
-                    continue
+
+            home = self._pick(elements, HOME_TAB_TITLES, "Button")
+            chat_mode = self._pick(elements, CHAT_MODE_TITLES, "RadioButton")
+            new_chat = self._pick(elements, NEW_CHAT_BUTTON_TITLES, "Button")
+            composer = self._pick_edit(elements)
+
+            if home and chat_mode and new_chat and composer:
+                return home, chat_mode, new_chat, composer
+
             if time.monotonic() >= deadline:
-                raise DeliveryError(f"{control_type} not found or not ready (tried {titles})")
+                missing = [
+                    label for label, val in (
+                        ("Home", home), ("Chat mode", chat_mode),
+                        ("new chat", new_chat), ("composer(Edit)", composer),
+                    ) if not val
+                ]
+                raise DeliveryError(f"controls not found or not ready: {missing}")
             time.sleep(0.3)
 
-    def _first_edit(self, window, timeout=10):
-        # 入力欄は唯一の Edit。descendants を1回で拾い、visible/enabled な解決済み wrapper を返す。
-        deadline = time.monotonic() + timeout
-        first_scan = True
-        while True:
-            scan_start = time.monotonic()
+    def _pick(self, elements, titles, control_type):
+        # スナップショットから name+control_type 一致で visible+enabled な要素を返す(無ければ None)。
+        wanted = tuple(titles)
+        for element in elements:
             try:
-                edits = window.descendants(control_type="Edit")
-            except Exception:
-                edits = []
-            if first_scan:
-                logger.info(
-                    "  descendants(Edit): %.2fs, %d elems",
-                    time.monotonic() - scan_start, len(edits),
-                )
-                first_scan = False
-            for edit in edits:
-                try:
-                    if edit.is_visible() and edit.is_enabled():
-                        return edit
-                except Exception:
+                ei = element.element_info
+                if ei.control_type != control_type:
                     continue
-            if time.monotonic() >= deadline:
-                raise DeliveryError("chat composer (Edit) not found or not ready")
-            time.sleep(0.3)
+                if ei.name not in wanted:
+                    continue
+                if element.is_visible() and element.is_enabled():
+                    return element
+            except Exception:
+                continue
+        return None
+
+    def _pick_edit(self, elements):
+        # スナップショットから唯一の Edit を返す(visible+enabled)。無ければ None。
+        for element in elements:
+            try:
+                if element.element_info.control_type != "Edit":
+                    continue
+                if element.is_visible() and element.is_enabled():
+                    return element
+            except Exception:
+                continue
+        return None
 
     def _inject(self, window, text: str) -> None:
         # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
         # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
         # 「新しいタスク」は絶対に押さない(見つからなければ fail-closed 中止)。
-        # ElectronのcontenteditableはUIA ValuePatternが効かない/黙って失敗しうるため、
-        # 入力欄を実クリックでフォーカスしてクリップボード貼り付けする。物理クリック/
-        # 貼り付けの各直前で前面を検証し、前面化できないなら一切操作しない(誤爆防止)。
+        # descendants は型に関係なく約4.5秒かかるため、1回のスナップショットで
+        # Home/チャット/新規チャット/入力欄をまとめて解決する(4回→1回)。
+        with _timed("snapshot controls"):
+            home, chat_mode, new_chat, composer = self._snapshot_controls(window)
+
         logger.info("going to Home")
-        with _timed("find Home tab"):
-            home = self._first_existing(window, HOME_TAB_TITLES, "Button")
         self._assert_foreground(window)
-        home.click_input()  # 既にHomeでも無害
+        home.click_input()
         time.sleep(self._settle_s)
 
         logger.info("selecting Chat mode")
-        with _timed("find Chat mode toggle"):
-            chat_mode = self._first_existing(window, CHAT_MODE_TITLES, "RadioButton")
         self._assert_foreground(window)
         chat_mode.click_input()  # Cowork→チャット。既にチャットでも無害
         time.sleep(self._settle_s)
 
         logger.info("starting a new chat")
-        with _timed("find new-chat button"):
-            new_chat = self._first_existing(window, NEW_CHAT_BUTTON_TITLES, "Button")
         self._assert_foreground(window)
-        new_chat.click_input()  # 毎回まっさらなチャットに送る(「新しいタスク」は使わない)
+        new_chat.click_input()  # 「新しいタスク」は使わない
         time.sleep(self._settle_s)
 
         logger.info("focusing chat composer (Edit)")
-        with _timed("find composer"):
-            composer = self._first_edit(window)
         self._assert_foreground(window)
-        composer.click_input()  # 唯一のEdit=入力欄を確実にフォーカス
+        composer.click_input()
 
         logger.info("clearing composer")
         self._assert_foreground(window)
-        send_keys("^a")           # 全選択
-        self._assert_foreground(window)   # 破壊的なDelete直前に再確認(誤爆で他アプリを消さない)
-        send_keys("{DELETE}")     # 前回の未送信テキストを消す(残り混入を防ぐ)
+        send_keys("^a")
+        self._assert_foreground(window)  # 破壊的なDelete直前に再確認
+        send_keys("{DELETE}")
         time.sleep(self._settle_s)
 
         logger.info("pasting text via clipboard")
         with ClipboardGuard(self._clipboard, text):
             self._assert_foreground(window)
             send_keys("^v")
-            time.sleep(self._settle_s)  # 貼り付け完了を待ってからクリップボードを復元
+            time.sleep(self._settle_s)
