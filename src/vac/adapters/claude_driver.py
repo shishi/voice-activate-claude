@@ -222,8 +222,30 @@ class ClaudeDesktopDriver:
                 return resolved
             if time.monotonic() >= deadline:
                 missing = [label for label, val in resolved.items() if not val]
+                self._log_resolve_failure(elements, specs, missing)
                 raise DeliveryError(f"controls not found or not ready: {missing}")
             time.sleep(0.3)
+
+    def _log_resolve_failure(self, elements, specs, missing):
+        # 解決失敗の切り分け用ダンプ。最終スナップショットから
+        # 「探している型と一致する要素(名前は不問)」と
+        # 「探している名前を部分的に含む要素(型は不問)」を全て出す。
+        # これで name変更 / control_type変更 / 画面違い(どちらも出ない)を1回で判別できる。
+        wanted_types = {ct for _, _, ct in specs}
+        wanted_names = tuple(t for _, titles, _ in specs for t in titles)
+        logger.info("resolve failed for %s; dumping candidates from %d elems", missing, len(elements))
+        raised = 0
+        for element in elements:
+            try:
+                ei = element.element_info
+                name = ei.name or ""
+                if ei.control_type in wanted_types or any(w in name for w in wanted_names):
+                    logger.info("  candidate: %-12s name=%r id=%r",
+                                ei.control_type, name, ei.automation_id)
+            except Exception:
+                raised += 1
+        if raised:
+            logger.info("  (element_info raised on %d elems)", raised)
 
     def _pick(self, elements, titles, control_type):
         # スナップショットから name+control_type 一致で visible+enabled な要素を返す(無ければ None)。
