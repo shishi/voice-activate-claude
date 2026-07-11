@@ -218,6 +218,85 @@ def check_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_probe(args: argparse.Namespace) -> int:
+    # UIA走査の速度実験。descendants()の約4.5秒が pywinauto のラップ費用なのか
+    # Electron プロバイダ側の固定費なのかを、生COM呼び出しとの比較で切り分ける。
+    # Home タブと Code タブの両方で1回ずつ実行する(FindFirst の hit/miss 両方を測るため)。
+    import time
+
+    from pywinauto import Desktop
+    from pywinauto.uia_defines import IUIA
+
+    from vac.adapters.claude_driver import WINDOW_TITLE_RE
+
+    def timed(label, fn):
+        t0 = time.monotonic()
+        try:
+            result = fn()
+        except Exception as exc:
+            print(f"{label}: FAILED {time.monotonic() - t0:.3f}s ({exc!r})")
+            return None
+        print(f"{label}: {time.monotonic() - t0:.3f}s")
+        return result
+
+    window = Desktop(backend="uia").window(title_re=WINDOW_TITLE_RE)
+    wrapper = timed("find_window(wrapper_object)", window.wrapper_object)
+    if wrapper is None:
+        print("Claude Desktop のウィンドウが見つからない")
+        return 1
+
+    # --- 前面化の内訳(いまの8秒がどこで消えているか) ---
+    print("\n=== raise_foreground 内訳 ===")
+    timed("set_focus", wrapper.set_focus)
+    active = timed("is_active", wrapper.is_active)
+    print(f"  is_active={active}")
+
+    # --- スキャン速度比較 ---
+    print("\n=== スキャン速度(各2回=コールド/ウォーム) ===")
+    for i in (1, 2):
+        elems = timed(f"pywinauto descendants #{i}", window.descendants)
+        if elems is not None:
+            print(f"  -> {len(elems)} elems")
+
+    iuia = IUIA()
+    dll = iuia.UIA_dll
+    com = iuia.iuia
+    root = wrapper.element_info.element  # IUIAutomationElement(生COM)
+    scope = iuia.tree_scope["descendants"]
+
+    true_cond = com.CreateTrueCondition()
+    for i in (1, 2):
+        found = timed(f"raw FindAll(TrueCondition) #{i}", lambda: root.FindAll(scope, true_cond))
+        if found is not None:
+            print(f"  -> {found.Length} elems")
+
+    radio_cond = com.CreateAndCondition(
+        com.CreatePropertyCondition(dll.UIA_ControlTypePropertyId, dll.UIA_RadioButtonControlTypeId),
+        com.CreatePropertyCondition(dll.UIA_NamePropertyId, "チャット"),
+    )
+    for i in (1, 2):
+        hit = timed(f"raw FindFirst(RadioButton『チャット』) #{i}", lambda: root.FindFirst(scope, radio_cond))
+        print(f"  -> {'HIT: ' + hit.CurrentName if hit else 'miss(この画面には無い)'}")
+        if hit:
+            print(f"     IsOffscreen={hit.CurrentIsOffscreen} IsEnabled={hit.CurrentIsEnabled}")
+
+    edit_cond = com.CreatePropertyCondition(dll.UIA_ControlTypePropertyId, dll.UIA_EditControlTypeId)
+    hit = timed("raw FindFirst(Edit)", lambda: root.FindFirst(scope, edit_cond))
+    print(f"  -> {'HIT: ' + repr(hit.CurrentName) if hit else 'miss'}")
+
+    new_chat_cond = com.CreateAndCondition(
+        com.CreatePropertyCondition(dll.UIA_ControlTypePropertyId, dll.UIA_ButtonControlTypeId),
+        com.CreatePropertyCondition(dll.UIA_NamePropertyId, "新規"),
+    )
+    hit = timed("raw FindFirst(Button『新規』)", lambda: root.FindFirst(scope, new_chat_cond))
+    print(f"  -> {'HIT' if hit else 'miss(この画面には無い)'}")
+
+    focused = timed("GetFocusedElement", com.GetFocusedElement)
+    if focused is not None:
+        print(f"  -> name={focused.CurrentName!r} type={focused.CurrentControlType}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m vac.check")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -256,6 +335,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("devices", help="入力/出力デバイス一覧を表示する").set_defaults(func=check_devices)
 
     sub.add_parser("tree", help="Claude DesktopのUIAツリーを調べる").set_defaults(func=check_tree)
+
+    sub.add_parser(
+        "probe", help="UIA走査の速度実験(descendants vs 生FindFirst等を計測する)"
+    ).set_defaults(func=check_probe)
 
     record_parser = sub.add_parser("record", help="学習用のウェイクワード音声を録音する")
     record_parser.add_argument("--device", default=None, help="入力デバイスの名前(部分一致)かindex")
