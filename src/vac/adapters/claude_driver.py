@@ -30,7 +30,6 @@ def _timed(label: str):
         logger.info("%s: %.2fs", label, time.monotonic() - start)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
-HOME_TAB_TITLES = ("Home", "ホーム")            # ホーム(チャット一覧)へ戻るタブ。ロケール差を吸収
 CHAT_MODE_TITLES = ("チャット", "Chat")         # 入力欄のモードトグル(チャット/Cowork)
 NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットのみ。「新しいタスク」は使わない
 LAUNCH_TIMEOUT_S = 15.0
@@ -257,16 +256,12 @@ class ClaudeDesktopDriver:
     def _inject(self, window, text: str) -> None:
         # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
         # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
-        # 各コントロールはナビゲーション(タブ/モード/新規チャット)ごとに再描画され、
+        # 各コントロールはナビゲーション(モード/新規チャット)ごとに再描画され、
         # 事前取得した wrapper は stale になりうる。よって「使う直前に1個ずつ解決」する。
         # descendants は型に関係なく約4.5秒なので回数は増えるが、正確さを優先する。
-        logger.info("going to Home")
-        with _timed("resolve Home"):
-            home = self._resolve(window, [("home", HOME_TAB_TITLES, "Button")])["home"]
-        self._assert_foreground(window)
-        home.click_input()
-        time.sleep(self._settle_s)
-
+        # 注記: 実機検証で Home ボタンをクリックするとチャット/Cowork トグルが消える画面に
+        # 遷移し注入が失敗したため、Home クリックは行わない。トグルと入力欄は通常画面に
+        # 常在するので、その場でチャットモード→新規チャット→貼り付けする。
         logger.info("selecting Chat mode")
         with _timed("resolve chat-mode"):
             chat_mode = self._resolve(window, [("chat_mode", CHAT_MODE_TITLES, "RadioButton")])["chat_mode"]
