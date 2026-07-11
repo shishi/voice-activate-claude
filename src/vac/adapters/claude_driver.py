@@ -235,8 +235,19 @@ class ClaudeDesktopDriver:
                     continue
                 if ei.name not in wanted:
                     continue
-                if element.is_visible() and element.is_enabled():
+                # 名前+型は一致した。ready判定で弾く理由を診断ログに出す(なぜ取れないかの切り分け用)。
+                vis = ena = None
+                try:
+                    vis = element.is_visible()
+                    ena = element.is_enabled()
+                except Exception as exc:
+                    logger.info("  ready-check raised for %r/%s: %s", ei.name, control_type, exc)
+                if vis and ena:
                     return element
+                logger.info(
+                    "  matched %r/%s but not ready: visible=%s enabled=%s",
+                    ei.name, control_type, vis, ena,
+                )
             except Exception:
                 continue
         return None
