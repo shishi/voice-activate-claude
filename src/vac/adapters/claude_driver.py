@@ -30,8 +30,12 @@ def _timed(label: str):
         logger.info("%s: %.2fs", label, time.monotonic() - start)
 
 WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
+HOME_TAB_TITLES = ("Home", "ホーム")            # Home/Code タブ。トグルと入力欄は Home 側にのみ存在
 CHAT_MODE_TITLES = ("チャット", "Chat")         # 入力欄のモードトグル(チャット/Cowork)
-NEW_CHAT_BUTTON_TITLES = ("新規チャット", "New chat")  # 新規チャットのみ。「新しいタスク」は使わない
+# 新規チャットのボタン。2026-07 の UI 更新で「新規チャット」→「新規」に改名された。
+# Code タブでは同じ位置が「新規セッション」になるが、完全一致なので誤爆しない(fail-closed)。
+# 「新しいタスク」は絶対に使わない。
+NEW_CHAT_BUTTON_TITLES = ("新規", "新規チャット", "New chat")
 LAUNCH_TIMEOUT_S = 15.0
 DEFAULT_EXE_CANDIDATES = [
     # 標準的なインストール先。実機で `where claude` 等で確認して必要なら追加する
@@ -287,26 +291,37 @@ class ClaudeDesktopDriver:
         return None
 
     def _inject(self, window, text: str) -> None:
-        # 要望: 常に「チャット」モードの「新規チャット」に送る。Coworkのままだと
-        # 新規ボタンが「新しいタスク」に変わるため、先にチャットモードへ切り替える。
-        # 各コントロールはナビゲーション(モード/新規チャット)ごとに再描画され、
-        # 事前取得した wrapper は stale になりうる。よって「使う直前に1個ずつ解決」する。
-        # descendants は型に関係なく約4.5秒なので回数は増えるが、正確さを優先する。
-        # 注記: 実機検証で Home ボタンをクリックするとチャット/Cowork トグルが消える画面に
-        # 遷移し注入が失敗したため、Home クリックは行わない。トグルと入力欄は通常画面に
-        # 常在するので、その場でチャットモード→新規チャット→貼り付けする。
-        logger.info("selecting Chat mode")
-        with _timed("resolve chat-mode"):
-            chat_mode = self._resolve(window, [("chat_mode", CHAT_MODE_TITLES, "RadioButton")])["chat_mode"]
+        # 要望: 常に「チャット」モードの新規チャットに送る。
+        # 実機の UIA ツリー比較(2026-07-11)で確定した現行 UI の前提:
+        #   - チャット/Cowork RadioButton と入力欄 Edit は Home タブにのみ存在する。
+        #     Code タブでは RadioButton が 0 個になり解決不能 → まず Home をクリックする。
+        #     (以前「Home クリックでトグルが消える」問題があったが、その後の UI 更新で
+        #      Home は入力欄+トグル常駐のダッシュボードになった。挙動が再変化しても
+        #      後続の resolve が失敗して fail-closed 中止になるだけで誤爆はしない)
+        #   - サイドバーの新規ボタンは Home タブで「新規」、Code タブで「新規セッション」。
+        # 各コントロールはナビゲーションごとに再描画され、事前取得した wrapper は
+        # stale になりうる。よって「使う直前に1個ずつ解決」する(descendants は約4.5秒/回)。
+        # 順序は Home → 新規 → チャットモード → Edit。モード切替を新規クリックの後に
+        # 置くのは、送信直前にチャットモードであることを保証するため。
+        logger.info("switching to Home tab")
+        with _timed("resolve home-tab"):
+            home = self._resolve(window, [("home", HOME_TAB_TITLES, "Button")])["home"]
         self._assert_foreground(window)
-        chat_mode.click_input()  # Cowork→チャット。既にチャットでも無害
+        home.click_input()  # 既に Home でも無害(ダッシュボード表示になる)
         time.sleep(self._settle_s)
 
         logger.info("starting a new chat")
         with _timed("resolve new-chat"):
             new_chat = self._resolve(window, [("new_chat", NEW_CHAT_BUTTON_TITLES, "Button")])["new_chat"]
         self._assert_foreground(window)
-        new_chat.click_input()  # 「新しいタスク」は使わない
+        new_chat.click_input()  # 「新しいタスク」「新規セッション」は名前不一致で掴めない=誤爆しない
+        time.sleep(self._settle_s)
+
+        logger.info("selecting Chat mode")
+        with _timed("resolve chat-mode"):
+            chat_mode = self._resolve(window, [("chat_mode", CHAT_MODE_TITLES, "RadioButton")])["chat_mode"]
+        self._assert_foreground(window)
+        chat_mode.click_input()  # Cowork→チャット。既にチャットでも無害
         time.sleep(self._settle_s)
 
         logger.info("focusing chat composer (Edit)")
