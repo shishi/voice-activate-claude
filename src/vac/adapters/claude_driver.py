@@ -99,13 +99,17 @@ class ClaudeDesktopDriver:
         self._settle_s = settle_s
         self._clipboard = Win32Clipboard()
         self._cached_hwnd: int | None = None  # 常駐時の再注入で列挙を省く
+        self._scan_saw_candidate = False  # 直近スキャンで候補窓を見たか(未準備と不在の区別)
 
     def deliver(self, text: str) -> None:
         try:
             with _timed("find_window"):
                 window = self._find_window()
             if window is None:
-                self._launch()
+                # 候補窓は見えたが UIA 未準備で掴めなかっただけなら、二重起動を避けて
+                # 待機だけする(_wait_for_window が _find_window を再ポーリングする)
+                if not self._scan_saw_candidate:
+                    self._launch()
                 window = self._wait_for_window()
             with _timed("raise_foreground"):
                 self._raise_foreground(window)
@@ -129,14 +133,17 @@ class ClaudeDesktopDriver:
         # 速度優先の意図的なトレードオフ(失敗時はキャッシュ破棄で再列挙される)。
         # _wrap の一時失敗(起動直後で UIA プロバイダ未準備等)は「まだ見つからない」
         # 扱いで None に落とし、_wait_for_window のポーリング継続を殺さない。
+        self._scan_saw_candidate = False
         cached = self._validate_cached_hwnd()
         if cached is not None:
+            self._scan_saw_candidate = True
             try:
                 return self._wrap(cached)
             except Exception:
                 logger.debug("wrap failed for cached hwnd=%s", cached, exc_info=True)
         self._cached_hwnd = None
         for hwnd in self._enum_claude_hwnds():
+            self._scan_saw_candidate = True
             try:
                 wrapper = self._wrap(hwnd)
             except Exception:
