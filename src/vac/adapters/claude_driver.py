@@ -91,6 +91,7 @@ class ClaudeDesktopDriver:
         self._exe_path = exe_path
         self._settle_s = settle_s
         self._clipboard = Win32Clipboard()
+        self._cached_hwnd: int | None = None  # 常駐時の再注入で列挙を省く
 
     def deliver(self, text: str) -> None:
         try:
@@ -105,16 +106,39 @@ class ClaudeDesktopDriver:
             self._assert_foreground(window)
             send_keys("{ENTER}")
         except DeliveryError:
+            self._cached_hwnd = None
             raise
         except Exception as exc:
+            self._cached_hwnd = None
             raise DeliveryError(str(exc)) from exc
 
     def _find_window(self):
         # WindowSpecification(遅延解決)を返すと、以後のメソッド呼び出しごとに
         # タイトル regex の全ウィンドウ検索(実測約4.3秒)が再実行される。
         # 実体の UIAWrapper を返し、deliver あたりの解決を最大1回にする(spec 2026-07-11)。
+        cached = self._validate_cached_hwnd()
+        if cached is not None:
+            return self._wrap(cached)
+        self._cached_hwnd = None
         for hwnd in self._enum_claude_hwnds():
+            self._cached_hwnd = hwnd
             return self._wrap(hwnd)
+        return None
+
+    def _validate_cached_hwnd(self):
+        # hwnd は OS に再利用されるため、liveness(IsWindow)だけでは別ウィンドウを
+        # 掴みうる。タイトル+プロセス exe まで再検証して初めて再利用する(fail-closed)。
+        hwnd = self._cached_hwnd
+        try:
+            if (
+                hwnd
+                and win32gui.IsWindow(hwnd)
+                and title_matches(win32gui.GetWindowText(hwnd))
+                and exe_matches(self._window_exe(hwnd))
+            ):
+                return hwnd
+        except Exception:
+            pass
         return None
 
     def _enum_claude_hwnds(self):
