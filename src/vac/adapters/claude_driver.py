@@ -124,12 +124,17 @@ class ClaudeDesktopDriver:
         hwnds: list[int] = []
 
         def _cb(hwnd, _):
-            if (
-                win32gui.IsWindowVisible(hwnd)
-                and title_matches(win32gui.GetWindowText(hwnd))
-                and exe_matches(self._window_exe(hwnd))
-            ):
-                hwnds.append(hwnd)
+            # コールバック内の例外は EnumWindows 全体を中断させる(pywin32 の仕様)ため、
+            # 1個の異常ウィンドウで列挙全体が死なないよう握って続行する。
+            try:
+                if (
+                    win32gui.IsWindowVisible(hwnd)
+                    and title_matches(win32gui.GetWindowText(hwnd))
+                    and exe_matches(self._window_exe(hwnd))
+                ):
+                    hwnds.append(hwnd)
+            except Exception:
+                logger.debug("enum callback skipped hwnd=%s", hwnd, exc_info=True)
             return True
 
         win32gui.EnumWindows(_cb, None)
