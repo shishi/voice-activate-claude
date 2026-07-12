@@ -144,6 +144,7 @@ class ClaudeDesktopDriver:
             if (
                 hwnd
                 and win32gui.IsWindow(hwnd)
+                and win32gui.IsWindowVisible(hwnd)  # トレイ格納で非表示になった窓は新規探索(_launch経由の復元)に回す
                 and title_matches(win32gui.GetWindowText(hwnd))
                 and exe_matches(self._window_exe(hwnd), self._allowed_exe_names)
             ):
