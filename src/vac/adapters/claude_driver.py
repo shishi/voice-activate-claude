@@ -5,7 +5,7 @@ import contextlib
 import logging
 import subprocess
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import win32clipboard  # pywinautoが依存するpywin32に同梱
 import win32con
@@ -14,7 +14,7 @@ from pywinauto.controls.uiawrapper import UIAWrapper
 from pywinauto.keyboard import send_keys
 from pywinauto.uia_element_info import UIAElementInfo
 
-from vac.adapters.window_identity import WINDOW_TITLE_RE, exe_matches, title_matches
+from vac.adapters.window_identity import CLAUDE_EXE_NAMES, WINDOW_TITLE_RE, exe_matches, title_matches
 from vac.clipboard import ClipboardGuard
 from vac.ports import DeliveryError
 
@@ -89,6 +89,13 @@ class Win32Clipboard:
 class ClaudeDesktopDriver:
     def __init__(self, exe_path: str | None = None, settle_s: float = 0.3) -> None:
         self._exe_path = exe_path
+        # 設定(--exe / config)で別名バイナリを指した場合、その basename も
+        # ウィンドウ同一性判定に加える。既定名しか認めないと _launch はできるのに
+        # _find_window が永遠に認識できず再起動ループになる(Codex review P2)。
+        names = set(CLAUDE_EXE_NAMES)
+        if exe_path:
+            names.add(PureWindowsPath(exe_path).name.lower())
+        self._allowed_exe_names = frozenset(names)
         self._settle_s = settle_s
         self._clipboard = Win32Clipboard()
         self._cached_hwnd: int | None = None  # 常駐時の再注入で列挙を省く
@@ -116,6 +123,10 @@ class ClaudeDesktopDriver:
         # WindowSpecification(遅延解決)を返すと、以後のメソッド呼び出しごとに
         # タイトル regex の全ウィンドウ検索(実測約4.3秒)が再実行される。
         # 実体の UIAWrapper を返し、deliver あたりの解決を最大1回にする(spec 2026-07-11)。
+        # 注: キャッシュが有効な間は最初に掴んだウィンドウに固定される(複数の
+        # Claude ウィンドウがある場合、後から手前に来た別ウィンドウには切り替わらない)。
+        # どのウィンドウでも「チャットモードの新規チャットに送る」要件は満たすため、
+        # 速度優先の意図的なトレードオフ(失敗時はキャッシュ破棄で再列挙される)。
         cached = self._validate_cached_hwnd()
         if cached is not None:
             return self._wrap(cached)
@@ -134,7 +145,7 @@ class ClaudeDesktopDriver:
                 hwnd
                 and win32gui.IsWindow(hwnd)
                 and title_matches(win32gui.GetWindowText(hwnd))
-                and exe_matches(self._window_exe(hwnd))
+                and exe_matches(self._window_exe(hwnd), self._allowed_exe_names)
             ):
                 return hwnd
         except Exception:
@@ -154,7 +165,7 @@ class ClaudeDesktopDriver:
                 if (
                     win32gui.IsWindowVisible(hwnd)
                     and title_matches(win32gui.GetWindowText(hwnd))
-                    and exe_matches(self._window_exe(hwnd))
+                    and exe_matches(self._window_exe(hwnd), self._allowed_exe_names)
                 ):
                     hwnds.append(hwnd)
             except Exception:

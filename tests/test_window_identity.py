@@ -40,3 +40,11 @@ class TestExeMatches:
     def test_device_form_path(self):
         # GetProcessImageFileName はデバイス形式パスを返す。basename 判定で通ること
         assert exe_matches(r"\Device\HarddiskVolume4\Users\shishi\AppData\Local\AnthropicClaude\claude.exe")
+
+    def test_allowed_names_override_accepts_custom_exe(self):
+        # --exe で別名バイナリを指定した場合は許可集合に追加されて通る
+        allowed = frozenset({"claude.exe", "claude-portable.exe"})
+        assert exe_matches(r"D:\apps\claude-portable.exe", allowed)
+
+    def test_default_rejects_custom_exe(self):
+        assert not exe_matches(r"D:\apps\claude-portable.exe")

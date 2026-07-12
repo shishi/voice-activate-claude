@@ -18,8 +18,10 @@ def title_matches(title: str | None) -> bool:
     return bool(title) and re.match(WINDOW_TITLE_RE, title) is not None
 
 
-def exe_matches(exe_path: str | None) -> bool:
+def exe_matches(
+    exe_path: str | None, allowed_names: frozenset[str] = CLAUDE_EXE_NAMES
+) -> bool:
     # exe が取得できない(None/空)は不一致扱い=掴まない(fail-closed)
     if not exe_path:
         return False
-    return PureWindowsPath(exe_path).name.lower() in CLAUDE_EXE_NAMES
+    return PureWindowsPath(exe_path).name.lower() in allowed_names
