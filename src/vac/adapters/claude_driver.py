@@ -10,10 +10,11 @@ from pathlib import Path
 import win32clipboard  # pywinautoが依存するpywin32に同梱
 import win32con
 import win32gui
-from pywinauto import Desktop
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.controls.uiawrapper import UIAWrapper
 from pywinauto.keyboard import send_keys
+from pywinauto.uia_element_info import UIAElementInfo
 
+from vac.adapters.window_identity import WINDOW_TITLE_RE, exe_matches, title_matches
 from vac.clipboard import ClipboardGuard
 from vac.ports import DeliveryError
 
@@ -29,7 +30,6 @@ def _timed(label: str):
     finally:
         logger.info("%s: %.2fs", label, time.monotonic() - start)
 
-WINDOW_TITLE_RE = r"^Claude(\s.*)?$"
 HOME_TAB_TITLES = ("Home", "ホーム")            # Home/Code タブ。トグルと入力欄は Home 側にのみ存在
 CHAT_MODE_TITLES = ("チャット", "Chat")         # 入力欄のモードトグル(チャット/Cowork)
 # 新規チャットのボタン。2026-07 の UI 更新で「新規チャット」→「新規」に改名された。
@@ -110,13 +110,52 @@ class ClaudeDesktopDriver:
             raise DeliveryError(str(exc)) from exc
 
     def _find_window(self):
+        # WindowSpecification(遅延解決)を返すと、以後のメソッド呼び出しごとに
+        # タイトル regex の全ウィンドウ検索(実測約4.3秒)が再実行される。
+        # 実体の UIAWrapper を返し、deliver あたりの解決を最大1回にする(spec 2026-07-11)。
+        for hwnd in self._enum_claude_hwnds():
+            return self._wrap(hwnd)
+        return None
+
+    def _enum_claude_hwnds(self):
+        # EnumWindows は Z順(手前が先)に列挙するため、複数候補時は先頭=手前を
+        # 採用すれば決定的になる。タイトルだけでなくプロセス exe も検証する(誤マッチ防止)。
+        # IsWindowVisible は WS_VISIBLE を見るだけなので最小化中でも TRUE(見逃さない)。
+        hwnds: list[int] = []
+
+        def _cb(hwnd, _):
+            if (
+                win32gui.IsWindowVisible(hwnd)
+                and title_matches(win32gui.GetWindowText(hwnd))
+                and exe_matches(self._window_exe(hwnd))
+            ):
+                hwnds.append(hwnd)
+            return True
+
+        win32gui.EnumWindows(_cb, None)
+        return hwnds
+
+    def _window_exe(self, hwnd):
+        # hwnd の所有プロセスの実行ファイルパス。取れなければ None(呼び出し側で不一致扱い)。
+        import win32api
+        import win32process
+
         try:
-            window = Desktop(backend="uia").window(title_re=WINDOW_TITLE_RE)
-            if window.exists():
-                return window
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            proc = win32api.OpenProcess(
+                win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ, False, pid
+            )
+            try:
+                return win32process.GetModuleFileNameEx(proc, 0)
+            finally:
+                proc.Close()
+        except Exception:
             return None
-        except ElementNotFoundError:
-            return None
+
+    def _wrap(self, hwnd):
+        # UIAElementInfo のシグネチャは (handle_or_elem=None, cache_enable=False)。
+        # handle= というキーワードは存在しない(位置引数で渡す)。
+        return UIAWrapper(UIAElementInfo(hwnd))
 
     def _launch(self) -> None:
         candidates = (
