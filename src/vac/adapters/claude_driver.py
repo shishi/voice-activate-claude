@@ -166,16 +166,21 @@ class ClaudeDesktopDriver:
 
     def _window_exe(self, hwnd):
         # hwnd の所有プロセスの実行ファイルパス。取れなければ None(呼び出し側で不一致扱い)。
+        # QUERY_INFORMATION|VM_READ だと管理者起動の Claude を開けず(access denied)、
+        # 既存ウィンドウを見逃して二重起動しうるため、昇格プロセスでも開ける
+        # 最小権限 PROCESS_QUERY_LIMITED_INFORMATION を使う。
+        # GetProcessImageFileName はデバイス形式パス(\Device\HarddiskVolumeX\...)を返すが、
+        # 判定は exe_matches が basename しか見ないため問題ない。
         import win32api
         import win32process
 
         try:
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             proc = win32api.OpenProcess(
-                win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ, False, pid
+                win32con.PROCESS_QUERY_LIMITED_INFORMATION, False, pid
             )
             try:
-                return win32process.GetModuleFileNameEx(proc, 0)
+                return win32process.GetProcessImageFileName(proc)
             finally:
                 proc.Close()
         except Exception:
