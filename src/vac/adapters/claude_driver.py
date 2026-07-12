@@ -42,6 +42,10 @@ DEFAULT_EXE_CANDIDATES = [
     Path.home() / "AppData/Local/AnthropicClaude/claude.exe",
     Path.home() / "AppData/Local/Programs/claude-desktop/Claude.exe",
 ]
+# Microsoft Store (MSIX) 版の起動用 AUMID。WindowsApps 配下の exe は直接実行できない
+# (ACL 制限)ため、shell:AppsFolder 経由で起動する。パッケージファミリー名は
+# 発行元証明書由来で版が変わっても不変。
+CLAUDE_MSIX_AUMID = r"shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude"
 
 
 class Win32Clipboard:
@@ -180,12 +184,17 @@ class ClaudeDesktopDriver:
             # コールバック内の例外は EnumWindows 全体を中断させる(pywin32 の仕様)ため、
             # 1個の異常ウィンドウで列挙全体が死なないよう握って続行する。
             try:
-                if (
-                    win32gui.IsWindowVisible(hwnd)
-                    and title_matches(win32gui.GetWindowText(hwnd))
-                    and exe_matches(self._window_exe(hwnd), self._allowed_exe_names)
-                ):
+                if not win32gui.IsWindowVisible(hwnd):
+                    return True
+                if not title_matches(win32gui.GetWindowText(hwnd)):
+                    return True
+                exe = self._window_exe(hwnd)
+                if exe_matches(exe, self._allowed_exe_names):
                     hwnds.append(hwnd)
+                else:
+                    # タイトルは Claude 一致なのに exe で弾いた事実は誤検知切り分けの要。
+                    # (exe=None なら OpenProcess/GetProcessImageFileName 失敗)
+                    logger.info("title matched but exe rejected: hwnd=%s exe=%r", hwnd, exe)
             except Exception:
                 logger.debug("enum callback skipped hwnd=%s", hwnd, exc_info=True)
             return True
@@ -228,6 +237,13 @@ class ClaudeDesktopDriver:
             if exe.exists():
                 subprocess.Popen([str(exe)])
                 return
+        if not self._exe_path:
+            # Squirrel 版のパスが無ければ Microsoft Store (MSIX) 版とみなして
+            # AUMID 起動を試す(実機は Store 版だった)。パッケージ不在なら
+            # ウィンドウが現れず _wait_for_window の timeout で fail-closed になる。
+            logger.info("launching via MSIX AUMID: %s", CLAUDE_MSIX_AUMID)
+            subprocess.Popen(["explorer.exe", CLAUDE_MSIX_AUMID])
+            return
         raise DeliveryError(f"claude.exe not found in: {candidates}")
 
     def _raise_foreground(self, window) -> None:
