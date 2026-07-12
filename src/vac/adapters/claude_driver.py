@@ -127,13 +127,23 @@ class ClaudeDesktopDriver:
         # Claude ウィンドウがある場合、後から手前に来た別ウィンドウには切り替わらない)。
         # どのウィンドウでも「チャットモードの新規チャットに送る」要件は満たすため、
         # 速度優先の意図的なトレードオフ(失敗時はキャッシュ破棄で再列挙される)。
+        # _wrap の一時失敗(起動直後で UIA プロバイダ未準備等)は「まだ見つからない」
+        # 扱いで None に落とし、_wait_for_window のポーリング継続を殺さない。
         cached = self._validate_cached_hwnd()
         if cached is not None:
-            return self._wrap(cached)
+            try:
+                return self._wrap(cached)
+            except Exception:
+                logger.debug("wrap failed for cached hwnd=%s", cached, exc_info=True)
         self._cached_hwnd = None
         for hwnd in self._enum_claude_hwnds():
+            try:
+                wrapper = self._wrap(hwnd)
+            except Exception:
+                logger.debug("wrap failed for hwnd=%s (UIA not ready?)", hwnd, exc_info=True)
+                continue
             self._cached_hwnd = hwnd
-            return self._wrap(hwnd)
+            return wrapper
         return None
 
     def _validate_cached_hwnd(self):
