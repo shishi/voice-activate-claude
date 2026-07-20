@@ -1,4 +1,5 @@
 """tests/test_config.py"""
+import logging
 from pathlib import Path
 
 import pytest
@@ -202,6 +203,39 @@ def test_save_input_device_collapses_duplicate_lines(tmp_path):
     assert active == ["input_device = 7"]
     assert load_config(p).input_device == 7   # 読み直せる
     assert "wake_threshold = 0.5" in text
+
+
+def test_load_config_warns_when_cwd_config_toml_is_ignored(tmp_path, monkeypatch, caplog):
+    # リポジトリ直下の config.toml を編集しても反映されない混乱の再発防止:
+    # 読み込み対象と別の config.toml がカレントディレクトリにあれば警告する
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.toml").write_text('wake_model = "edited"\n', encoding="utf-8")
+    monkeypatch.chdir(repo)
+    real = tmp_path / "home" / "config.toml"
+    with caplog.at_level(logging.WARNING, logger="vac.config"):
+        config = load_config(real)
+    assert "config.toml" in caplog.text
+    assert str(real) in caplog.text
+    # 警告するだけで、カレントディレクトリ側の値は読まない
+    assert config.wake_model == "hey_jarvis"
+
+
+def test_load_config_no_warning_when_loading_cwd_config_itself(tmp_path, monkeypatch, caplog):
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path / "config.toml"
+    path.write_text('wake_model = "x"\n', encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="vac.config"):
+        config = load_config(path)
+    assert caplog.text == ""
+    assert config.wake_model == "x"
+
+
+def test_load_config_no_warning_without_cwd_config(tmp_path, monkeypatch, caplog):
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="vac.config"):
+        load_config(tmp_path / "elsewhere" / "config.toml")
+    assert caplog.text == ""
 
 
 def test_inject_settle_s_defaults():

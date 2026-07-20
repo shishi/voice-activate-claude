@@ -18,6 +18,10 @@
 4. (任意)`config.example.toml` を `~/.config/voice-activate-claude/config.toml` にコピーして調整
 5. `uv run python -m vac` で常駐開始(タスクトレイにアイコンが出る)
 
+> [!IMPORTANT]
+> 設定ファイルは `~/.config/voice-activate-claude/config.toml` **のみ**。
+> リポジトリ直下に `config.toml` を置いても読まれない(起動時にログへ警告が出る)。
+
 ## 動作確認
 
 各コンポーネントを単体で診断できる:

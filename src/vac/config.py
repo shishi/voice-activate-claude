@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -45,6 +48,7 @@ _FIELD_TYPES: dict[str, object] = {
 
 
 def load_config(path: Path) -> Config:
+    _warn_if_cwd_config_ignored(path)
     if not path.exists():
         return Config()
     with path.open("rb") as f:
@@ -59,6 +63,19 @@ def load_config(path: Path) -> Config:
     config = Config(**data)
     _validate(config)
     return config
+
+
+def _warn_if_cwd_config_ignored(path: Path) -> None:
+    """読み込み対象と別の config.toml がカレントディレクトリにあれば警告する。
+    リポジトリ直下の config.toml を編集しても反映されず混乱した実績への再発防止。"""
+    cwd_config = Path("config.toml")
+    try:
+        if cwd_config.is_file() and cwd_config.resolve() != path.resolve():
+            logger.warning(
+                "%s is ignored; this app only reads %s", cwd_config.resolve(), path
+            )
+    except OSError:
+        pass
 
 
 def _validate_types(data: dict[str, object]) -> None:
