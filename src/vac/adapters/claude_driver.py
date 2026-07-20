@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import logging
 import subprocess
 import time
+from ctypes import wintypes
 from pathlib import Path, PureWindowsPath
 
 import win32clipboard  # pywinautoが依存するpywin32に同梱
@@ -19,6 +21,19 @@ from vac.clipboard import ClipboardGuard
 from vac.ports import DeliveryError
 
 logger = logging.getLogger(__name__)
+
+# QueryFullProcessImageNameW は実機の pywin32 が wrap していない(win32process.pyd の
+# export は GetModuleFileNameEx のみ)ため ctypes で直接呼ぶ。64bit で HANDLE が
+# 既定の int(32bit)に切り詰められないよう prototype を明示する。
+_kernel32 = ctypes.windll.kernel32
+_kernel32.OpenProcess.restype = wintypes.HANDLE
+_kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+_kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+_kernel32.QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD),
+]
+_kernel32.CloseHandle.restype = wintypes.BOOL
+_kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
 
 @contextlib.contextmanager
@@ -204,26 +219,52 @@ class ClaudeDesktopDriver:
 
     def _window_exe(self, hwnd):
         # hwnd の所有プロセスの実行ファイルパス。取れなければ None(呼び出し側で不一致扱い)。
-        # QUERY_INFORMATION|VM_READ だと管理者起動の Claude を開けず(access denied)、
-        # 既存ウィンドウを見逃して二重起動しうるため、昇格プロセスでも開ける
-        # 最小権限 PROCESS_QUERY_LIMITED_INFORMATION を使う。
-        # GetProcessImageFileName はデバイス形式パス(\Device\HarddiskVolumeX\...)を返すが、
-        # 判定は exe_matches が basename しか見ないため問題ない。
-        import win32api
+        # 実機の pywin32 は GetProcessImageFileName / QueryFullProcessImageName を
+        # export しておらず(AttributeError で全ウィンドウを棄却する実障害になった)、
+        # ctypes の QueryFullProcessImageNameW(最小権限 LIMITED、昇格プロセスも可)を
+        # 第一候補に、pywin32 の GetModuleFileNameEx(要 QUERY_INFORMATION|VM_READ、
+        # export 実在は .pyd で確認済み)を予備にする。
         import win32process
 
         try:
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            proc = win32api.OpenProcess(
+        except Exception as exc:
+            logger.info("window pid lookup failed for hwnd=%s: %r", hwnd, exc)
+            return None
+        return self._process_exe_limited(pid) or self._process_exe_pywin32(pid, hwnd)
+
+    def _process_exe_limited(self, pid):
+        try:
+            proc = _kernel32.OpenProcess(
                 win32con.PROCESS_QUERY_LIMITED_INFORMATION, False, pid
             )
+            if not proc:
+                return None
             try:
-                return win32process.GetProcessImageFileName(proc)
+                buf = ctypes.create_unicode_buffer(32768)
+                size = wintypes.DWORD(len(buf))
+                if _kernel32.QueryFullProcessImageNameW(proc, 0, buf, ctypes.byref(size)):
+                    return buf.value
+                return None
+            finally:
+                _kernel32.CloseHandle(proc)
+        except Exception:
+            return None
+
+    def _process_exe_pywin32(self, pid, hwnd):
+        import win32api
+        import win32process
+
+        try:
+            proc = win32api.OpenProcess(
+                win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ, False, pid
+            )
+            try:
+                return win32process.GetModuleFileNameEx(proc, 0)
             finally:
                 proc.Close()
         except Exception as exc:
-            # 実機で exe=None による認識失敗が起きた(MSIX 版 Claude)。どの呼び出しが
-            # なぜ失敗したかを出さないと切り分けできないため、例外の実体を INFO で残す。
+            # 両経路とも失敗=認識不能。原因切り分けのため例外の実体を INFO で残す。
             logger.info("window exe lookup failed for hwnd=%s: %r", hwnd, exc)
             return None
 
