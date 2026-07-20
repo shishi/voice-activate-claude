@@ -61,6 +61,9 @@ DEFAULT_EXE_CANDIDATES = [
 # (ACL 制限)ため、shell:AppsFolder 経由で起動する。パッケージファミリー名は
 # 発行元証明書由来で版が変わっても不変。
 CLAUDE_MSIX_AUMID = r"shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude"
+# MSIX パッケージの導入判定に使うユーザー領域のフォルダ。WindowsApps 直下は
+# 通常権限で列挙できないため、ユーザーが読めるこちらで存在確認する。
+CLAUDE_MSIX_PACKAGE_DIR = Path.home() / "AppData/Local/Packages/Claude_pzs8sxrjxfjjc"
 
 
 class Win32Clipboard:
@@ -281,14 +284,18 @@ class ClaudeDesktopDriver:
             if exe.exists():
                 subprocess.Popen([str(exe)])
                 return
-        if not self._exe_path:
+        if not self._exe_path and CLAUDE_MSIX_PACKAGE_DIR.exists():
             # Squirrel 版のパスが無ければ Microsoft Store (MSIX) 版とみなして
-            # AUMID 起動を試す(実機は Store 版だった)。パッケージ不在なら
-            # ウィンドウが現れず _wait_for_window の timeout で fail-closed になる。
+            # AUMID 起動を試す(実機は Store 版だった)。パッケージ導入確認をせず
+            # 無条件に explorer を起動すると、未インストール機で即エラーの代わりに
+            # 15秒の曖昧な timeout になるため、先に存在確認する。
             logger.info("launching via MSIX AUMID: %s", CLAUDE_MSIX_AUMID)
             subprocess.Popen(["explorer.exe", CLAUDE_MSIX_AUMID])
             return
-        raise DeliveryError(f"claude.exe not found in: {candidates}")
+        raise DeliveryError(
+            f"Claude Desktop not found (exe candidates: {candidates}, "
+            f"msix package dir: {CLAUDE_MSIX_PACKAGE_DIR})"
+        )
 
     def _raise_foreground(self, window) -> None:
         # バックグラウンドから set_focus だけでは Windows の SetForegroundWindow 制約で
