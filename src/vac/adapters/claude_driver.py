@@ -221,7 +221,10 @@ class ClaudeDesktopDriver:
                 return win32process.GetProcessImageFileName(proc)
             finally:
                 proc.Close()
-        except Exception:
+        except Exception as exc:
+            # 実機で exe=None による認識失敗が起きた(MSIX 版 Claude)。どの呼び出しが
+            # なぜ失敗したかを出さないと切り分けできないため、例外の実体を INFO で残す。
+            logger.info("window exe lookup failed for hwnd=%s: %r", hwnd, exc)
             return None
 
     def _wrap(self, hwnd):
