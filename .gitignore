@@ -9,3 +9,4 @@ models/*
 *.lnk
 voice_samples/
 docs/progress.md
+.direnv/
