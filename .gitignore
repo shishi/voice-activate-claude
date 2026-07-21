@@ -8,3 +8,4 @@ models/*
 !models/.gitkeep
 *.lnk
 voice_samples/
+docs/progress.md
