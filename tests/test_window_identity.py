@@ -23,7 +23,7 @@ class TestTitleMatches:
 
 class TestExeMatches:
     def test_standard_install_path(self):
-        assert exe_matches(r"C:\Users\shishi\AppData\Local\AnthropicClaude\claude.exe")
+        assert exe_matches(r"C:\Users\you\AppData\Local\AnthropicClaude\claude.exe")
 
     def test_case_insensitive(self):
         assert exe_matches(r"C:\Program Files\claude-desktop\Claude.EXE")
@@ -39,7 +39,7 @@ class TestExeMatches:
 
     def test_device_form_path(self):
         # GetProcessImageFileName はデバイス形式パスを返す。basename 判定で通ること
-        assert exe_matches(r"\Device\HarddiskVolume4\Users\shishi\AppData\Local\AnthropicClaude\claude.exe")
+        assert exe_matches(r"\Device\HarddiskVolume4\Users\you\AppData\Local\AnthropicClaude\claude.exe")
 
     def test_allowed_names_override_accepts_custom_exe(self):
         # --exe で別名バイナリを指定した場合は許可集合に追加されて通る

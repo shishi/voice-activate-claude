@@ -50,7 +50,7 @@ class TestTitleMatches:
 
 class TestExeMatches:
     def test_standard_install_path(self):
-        assert exe_matches(r"C:\Users\shishi\AppData\Local\AnthropicClaude\claude.exe")
+        assert exe_matches(r"C:\Users\you\AppData\Local\AnthropicClaude\claude.exe")
 
     def test_case_insensitive(self):
         assert exe_matches(r"C:\Program Files\claude-desktop\Claude.EXE")
