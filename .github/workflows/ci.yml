@@ -36,8 +36,8 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .venv
-          # venv は interpreter の実パスを抱えるため、flake.lock(Python 更新)でも無効化する
-          key: venv-${{ hashFiles('uv.lock', 'flake.lock') }}
+          # venv は interpreter の実パスを抱えるため、.python-version(Python 更新)や flake.lock でも無効化する
+          key: venv-${{ hashFiles('uv.lock', 'flake.lock', '.python-version') }}
 
       - name: Install
         run: nix develop -c uv sync --locked
